@@ -1,45 +1,42 @@
 # Keyset
 
-Клиентский мод для Minecraft 26.3: наглядное переназначение клавиш и мыши, сочетания клавиш и отдельные профили управления. Основан на [Keymap от Einjerjar](https://github.com/Einjerjar/keymap).
+A client-side Minecraft mod for managing keyboard and mouse bindings, shortcuts, and separate control profiles.
 
-## Скачать и установить
+## Download and install
 
-Нужны Minecraft Java Edition **26.3** и Java **25**. Скачайте JAR для своего загрузчика со страницы [Releases](https://github.com/Meneleet-official/keyset/releases/latest):
+Download the JAR for your mod loader from [Releases](https://github.com/Meneleet-official/keyset/releases/latest). Each release lists its supported Minecraft, loader, and Java versions. Install the matching Fabric Loader or NeoForge version, then place the JAR in the \`mods\` folder.
 
-- **Fabric:** Fabric Loader 0.19.5 или новее.
-- **NeoForge:** версия 26.3.
+Keyset runs on the client. Fabric API and server installation are not required.
 
-Поместите JAR в папку `mods`. Мод работает на клиенте; Fabric API и установка на сервер не нужны.
+## Usage
 
-## Использование
+Open **Options -> Keyset**. In-game, open the editor with the key below Esc, usually \` or Grave. You can change this key in the controls settings.
 
-Откройте **Настройки → Keyset**. Во время игры редактор можно открыть клавишей под Esc (обычно ` или Grave); назначение клавиши меняется в настройках управления.
+- Select an action, then press a key, key combination, or mouse button. Press **Esc** to unbind it. Changes are saved immediately.
+- Use the visual keyboard and mouse diagrams to inspect bindings. Search and filter actions by category, mod, conflicts, or favorites.
+- Create, select, rename, and delete profiles. Assign the **Next Key Profile** action to switch profiles with a shortcut.
+- Set a profile to **Auto** for a world or server. Keyset activates it the next time you join.
+- The interface follows Minecraft's GUI scale and adapts to smaller windows. Key labels use the Minecraft language, and you can select a keyboard layout manually.
+- Keyset can manage Litematica and MaLiLib hotkeys when those mods are installed.
 
-- Выберите действие и нажмите клавишу, сочетание или кнопку мыши. **Esc** отвязывает действие; изменения сохраняются сразу.
-- Виртуальная клавиатура и схема мыши помогают находить назначения. Поиск и фильтры доступны по категориям, модам, конфликтам и избранному.
-- Создавайте, выбирайте, переименовывайте и удаляйте профили. Назначьте действие «Следующий профиль клавиш», чтобы переключаться горячей клавишей.
-- Для мира или сервера можно выбрать профиль **Авто**: Keyset активирует его при следующем входе.
-- Интерфейс меняет размер с настройкой GUI и перестраивается под небольшие окна. Подписи клавиш следуют языку Minecraft; раскладку можно выбрать вручную.
-- При установленных Litematica и MaLiLib Keyset также управляет их горячими клавишами.
+The menu is translated into Minecraft's available languages. English and Russian have been reviewed; other translations may contain errors.
 
-Переводы меню включают 143 языковых варианта Minecraft 26.3. Английский и русский проверены; многие остальные переводы автоматические и могут содержать ошибки.
+## Profiles and transfer
 
-## Профили и перенос
+Profiles are stored separately from the mod JAR in \`config/keyset/profiles.json\` in the shared Minecraft directory. Game instances on the same computer use the same file. Set a custom directory with the \`KEYSET_CONFIG_DIR\` environment variable or the \`-Dkeyset.configDir=...\` JVM option.
 
-Профили хранятся отдельно от JAR в `config/keyset/profiles.json` общей папки Minecraft. Все сборки на компьютере используют один файл. Можно задать другой каталог через `KEYSET_CONFIG_DIR` или параметр JVM `-Dkeyset.configDir=...`.
+To transfer profiles to another computer, choose **Export** in the profile menu. Copy the generated JSON files from \`config/keyset/transfer/\` to the other computer, then choose **Import**.
 
-Чтобы перенести профили на другой компьютер, откройте меню профилей и выберите **Экспорт**. Скопируйте созданные JSON-файлы из `config/keyset/transfer/` на другой компьютер и нажмите **Импорт**.
+## Build from source
 
-## Сборка из исходников
+Use the Gradle Wrapper:
 
-Требуются Java 25 и Gradle Wrapper:
-
-```powershell
+\`\`\`powershell
 .\gradlew.bat build
-```
+\`\`\`
 
-JAR появятся в `build/mods/`.
+The JAR files are placed in \`build/mods/\`.
 
-## Лицензия и авторство
+## License and credits
 
-Проект распространяется под лицензией **ISC**. Keyset основан на [Keymap от Einjerjar](https://github.com/Einjerjar/keymap); исходное уведомление об авторстве сохранено. Данные раскладок клавиатуры распространяются по отдельной лицензии Unicode, см. `LICENSE-KEYBOARD-DATA.txt`.
+Keyset is distributed under the **ISC License**. It is based on [Keymap by Einjerjar](https://github.com/Einjerjar/keymap), and the original copyright notice is retained. Keyboard layout data is distributed under a separate Unicode license; see \`LICENSE-KEYBOARD-DATA.txt\`.
