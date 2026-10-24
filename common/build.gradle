@@ -1,0 +1,23 @@
+plugins { id 'java-library' }
+sourceSets.main.java {
+    setSrcDirs(['src/client/java'])
+    include 'dev/keyset/profile/**'
+    include 'dev/keyset/editor/**'
+}
+sourceSets.main.resources {
+    setSrcDirs(['src/client/resources'])
+    include 'assets/keyset/keyboard_layouts.json'
+}
+// Validate shipped translations without putting client assets in the pure Java library.
+sourceSets.test.resources {
+    srcDir 'src/client/resources'
+    include 'assets/keyset/lang/**'
+    include 'assets/keyset/localization_manifest.json'
+}
+dependencies {
+    implementation 'com.google.code.gson:gson:2.13.2'
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+test { useJUnitPlatform() }

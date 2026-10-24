@@ -1,0 +1,35 @@
+plugins {
+    id 'base'
+    id 'net.fabricmc.fabric-loom' version '1.17.20' apply false
+    id 'net.neoforged.moddev' version '2.0.147' apply false
+}
+allprojects {
+    group = 'dev.keyset'
+    version = '1.0.0'
+    repositories { mavenCentral() }
+}
+subprojects {
+    plugins.withId('java') {
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(25)
+            withSourcesJar()
+        }
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 25
+        }
+        tasks.withType(Jar).configureEach {
+            from(rootProject.file('LICENSE'))
+            from(rootProject.file('LICENSE-KEYBOARD-DATA.txt'))
+            preserveFileTimestamps = false
+            reproducibleFileOrder = true
+        }
+    }
+}
+tasks.register('collectMods', Sync) {
+    dependsOn ':fabric:build', ':neoforge:build'
+    from(project(':fabric').layout.buildDirectory.dir('libs')) { include "keyset-fabric-${project.version}.jar" }
+    from(project(':neoforge').layout.buildDirectory.dir('libs')) { include "keyset-neoforge-${project.version}.jar" }
+    into layout.buildDirectory.dir('mods')
+}
+tasks.named('build') { dependsOn ':common:check', 'collectMods' }

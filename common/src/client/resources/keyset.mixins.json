@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.keyset.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "OptionsMixin",
+    "MinecraftMixin",
+    "OptionsScreenMixin",
+    "KeyMappingMixin",
+    "KeyMappingAccessor",
+    "MinecraftServerAccessor",
+    "LitematicaConfigMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

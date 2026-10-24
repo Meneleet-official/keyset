@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="ISC"
+[[mods]]
+modId="keyset"
+version="${version}"
+displayName="Keyset"
+logoFile="assets/keyset/icon.png"
+authors="Keyset contributors; Einjerjar (original Keymap)"
+description='''Visual key remapping with named hotkey profiles. Based on Keymap by Einjerjar.'''
+[[mixins]]
+config="keyset.mixins.json"
+[[mixins]]
+config="keyset.neoforge.mixins.json"
+[[dependencies.keyset]]
+modId="neoforge"
+type="required"
+versionRange="[26.3.0.95,)"
+ordering="NONE"
+side="CLIENT"
+[[dependencies.keyset]]
+modId="minecraft"
+type="required"
+versionRange="[26.3,26.4)"
+ordering="NONE"
+side="CLIENT"

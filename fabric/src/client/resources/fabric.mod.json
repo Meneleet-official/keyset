@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "keyset",
+  "version": "${version}",
+  "name": "Keyset",
+  "description": "Visual key remapping with named hotkey profiles. Based on Keymap by Einjerjar.",
+  "icon": "assets/keyset/icon.png",
+  "authors": ["Keyset contributors", "Einjerjar (original Keymap)"],
+  "license": "ISC",
+  "environment": "client",
+  "mixins": ["keyset.mixins.json"],
+  "depends": { "fabricloader": ">=0.19.5", "minecraft": "26.3", "java": ">=25", "fabric-resource-loader-v1": "*" }
+}

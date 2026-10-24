@@ -1,0 +1,17 @@
+plugins { id 'net.fabricmc.fabric-loom' }
+base { archivesName = 'keyset-fabric' }
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    // Bundle only the modules needed to expose mod translations as a resource pack.
+    include implementation('net.fabricmc.fabric-api:fabric-api-base:2.0.6+fcdff87f5d')
+    include implementation('net.fabricmc.fabric-api:fabric-resource-loader-v1:3.0.4+fcdff87f5d')
+}
+sourceSets.main {
+    java.setSrcDirs(['src/client/java', '../common/src/client/java'])
+    resources.setSrcDirs(['src/client/resources', '../common/src/client/resources'])
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
