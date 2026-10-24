@@ -10,7 +10,7 @@ Keyset runs on the client. Fabric API and server installation are not required.
 
 ## Usage
 
-Open **Options -> Keyset**. In-game, open the editor with the key below Esc, usually ` or Grave. You can change this key in the controls settings.
+Open **Options -> Keyset**. In-game, open the editor with the key below Esc (usually called Grave). You can change this key in the controls settings.
 
 - Select an action, then press a key, key combination, or mouse button. Press **Esc** to unbind it. Changes are saved immediately.
 - Use the visual keyboard and mouse diagrams to inspect bindings. Search and filter actions by category, mod, conflicts, or favorites.
