@@ -33,8 +33,8 @@ public final class KeysetWidgets {
 
     public static void drawCard(GuiGraphicsExtractor graphics, int x, int y, int width, int height) {
         if (width <= 0 || height <= 0) return;
-        graphics.fill(x, y, x + width, y + height, PANEL);
-        graphics.fill(x, y, x + width, y + 1, BORDER);
+        graphics.fill(x, y, x + width, y + height, UiTheme.panel());
+        graphics.fill(x, y, x + width, y + 1, UiTheme.border());
     }
 
     public static void drawText(GuiGraphicsExtractor graphics, Font font, Component text,
@@ -66,30 +66,32 @@ public final class KeysetWidgets {
         protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
             boolean hover = isHoveredOrFocused() && active;
             int x = getX(), y = getY(), width = getWidth(), height = getHeight();
-            int color = !active ? 0x70FFFFFF : selected && style == ButtonStyle.QUIET ? TEAL : TEXT;
+            int color = !active ? (UiTheme.text() & 0x00FFFFFF) | 0x70000000
+                : selected ? UiTheme.accentText() : UiTheme.text();
             if (style == ButtonStyle.ROW) {
                 if (selected || hover) {
-                    graphics.fill(x, y, x + width, y + height, selected ? SELECTED : CONTROL);
+                    graphics.fill(x, y, x + width, y + height, selected ? UiTheme.selected() : UiTheme.control());
                 }
                 graphics.fill(x + 5, y + height - 1, x + width - 5, y + height,
-                    selected ? TEAL : hover ? BORDER : ROW);
-                if (selected) color = TEAL;
-                else if (!hover) color = MUTED;
+                    selected ? UiTheme.accent() : hover ? UiTheme.border() : UiTheme.row());
+                if (selected) color = UiTheme.accentText();
+                else if (!hover) color = UiTheme.muted();
             } else {
-                int fill = selected ? SELECTED : hover ? HOVER : CONTROL;
-                if (style == ButtonStyle.BINDING && !selected) fill = hover ? HOVER : ROW;
+                int fill = selected ? UiTheme.selected() : hover ? UiTheme.hover() : UiTheme.control();
+                if (style == ButtonStyle.BINDING && !selected) fill = hover ? UiTheme.hover() : UiTheme.row();
                 if (!active) fill = 0x40000000;
-                if (style != ButtonStyle.QUIET || hover || selected) {
+                fill = UiTheme.widgetSurface(fill);
+                if (style != ButtonStyle.QUIET || hover || selected || UiTheme.text() == 0xFF000000) {
                     graphics.fill(x, y, x + width, y + height, fill);
                 }
                 if (style == ButtonStyle.BINDING) {
-                    graphics.fill(x, y + height - 1, x + width, y + height, KEY_SHADOW);
+                    graphics.fill(x, y + height - 1, x + width, y + height, UiTheme.keyShadow());
                 }
                 if (active && (selected || style == ButtonStyle.PRIMARY)) {
-                    graphics.fill(x, y + height - 2, x + width, y + height, TEAL);
+                    graphics.fill(x, y + height - 2, x + width, y + height, UiTheme.accent());
                 }
             }
-            if (active && isFocused()) graphics.outline(x, y, width, height, TEXT);
+            if (active && isFocused()) graphics.outline(x, y, width, height, UiTheme.text());
 
             Font font = Minecraft.getInstance().font;
             int available = Math.max(1, width - 10);

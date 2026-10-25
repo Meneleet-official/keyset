@@ -104,6 +104,21 @@ public final class ProfileStore {
         return findProfile(activeProfileId);
     }
 
+    /** Writes an exact persisted snapshot to a new destination without changing either store. */
+    public void copyTo(Path destination) throws IOException {
+        requireLoaded();
+        Path target = Objects.requireNonNull(destination, "destination").toAbsolutePath().normalize();
+        if (target.equals(file)) throw new IllegalArgumentException("Profile snapshot destination must be different");
+        PersistedState snapshot = SharedSettingsFiles.withFileLock(file, () ->
+                Files.exists(file) ? readFile(file) : currentState());
+        SharedSettingsFiles.withFileLock(target, () -> {
+            if (Files.exists(target)) throw new java.nio.file.FileAlreadyExistsException(target.toString());
+            validateMergedState(snapshot);
+            writeJsonLocked(target, toJson(snapshot));
+            return null;
+        });
+    }
+
     /** Returns an immutable in-memory checkpoint of the current profile selection and data. */
     public State checkpoint() {
         requireLoaded();

@@ -8,6 +8,7 @@
   "authors": ["Keyset contributors", "Einjerjar (original Keymap)"],
   "license": "ISC",
   "environment": "client",
+  "entrypoints": { "modmenu": ["dev.keyset.fabric.KeysetModMenu"] },
   "mixins": ["keyset.mixins.json"],
   "depends": { "fabricloader": ">=0.19.5", "minecraft": "26.3", "java": ">=25", "fabric-resource-loader-v1": "*" }
 }

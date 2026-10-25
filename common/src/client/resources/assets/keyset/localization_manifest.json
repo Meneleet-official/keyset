@@ -1,7 +1,7 @@
 {
   "minecraft": "26.3",
-  "release": "1.0.0",
-  "sourceHash": "669695b6392114619fefeec4fe9891d23b8121c36115db68c63b3f62fc172cdb",
+  "release": "1.1.0",
+  "sourceHash": "b608c8a723cc4a16d32cf344d22a67edb6c3314e3205c1cc7fbf20c3862c3f7a",
   "locales": {
     "af_za": {
       "name": "Afrikaans",

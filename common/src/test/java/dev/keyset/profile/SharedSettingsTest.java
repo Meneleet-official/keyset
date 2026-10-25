@@ -19,6 +19,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -38,6 +39,42 @@ class SharedSettingsTest {
         try (Stream<Path> paths = Files.walk(directory)) {
             for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
         }
+    }
+
+    @Test
+    void instanceRoutesStaySeparateAndDeletingLocalRoutePreservesSharedRoute() throws IOException {
+        Path file = directory.resolve("preferences.properties");
+        String instanceA = directory.resolve("game-a").toString();
+        String instanceB = directory.resolve("game-b").toString();
+        String sharedId = java.util.UUID.randomUUID().toString();
+        String localId = java.util.UUID.randomUUID().toString();
+        ClientPreferences preferences = new ClientPreferences(file);
+        preferences.load();
+        preferences.toggleRoute("server:one", sharedId);
+        preferences.toggleRoute("server:two", sharedId);
+        preferences.toggleRoute("server:one", localId, instanceA);
+        preferences.toggleRoute("server:one", localId, instanceB);
+        preferences.save();
+
+        ClientPreferences reloaded = new ClientPreferences(file);
+        reloaded.load();
+        assertEquals(sharedId, reloaded.profileFor("server:one"));
+        assertEquals(localId, reloaded.profileFor("server:one", instanceA));
+        assertEquals(localId, reloaded.profileFor("server:one", instanceB));
+        String replacementId = java.util.UUID.randomUUID().toString();
+        reloaded.remapProfileRoutes(Map.of(sharedId, replacementId));
+        assertEquals(replacementId, reloaded.profileFor("server:one"));
+        assertEquals(localId, reloaded.profileFor("server:one", instanceA));
+        reloaded.removeProfileRoutes(replacementId);
+        reloaded.removeProfileRoutes(localId, instanceA);
+        reloaded.save();
+
+        ClientPreferences verified = new ClientPreferences(file);
+        verified.load();
+        assertNull(verified.profileFor("server:one"));
+        assertNull(verified.profileFor("server:two"));
+        assertNull(verified.profileFor("server:one", instanceA));
+        assertEquals(localId, verified.profileFor("server:one", instanceB));
     }
 
     @Test
@@ -217,6 +254,91 @@ class SharedSettingsTest {
         assertEquals(profileA, reloaded.profileFor("server:one"));
         assertEquals(profileB, reloaded.profileFor("server:two"));
         assertEquals(0.61, reloaded.sidebarRatio(), 0.000001);
+    }
+
+    @Test
+    void preferencesPersistAppearanceAndHiddenSectionsAsImmutableValues() throws IOException {
+        Path file = directory.resolve("preferences.properties");
+        ClientPreferences preferences = new ClientPreferences(file);
+        preferences.load();
+        UiAppearance appearance = new UiAppearance(73, 29, true, 0x123456, 0xABCDEF, 68);
+        preferences.setAppearance(appearance);
+        preferences.setCategoryHidden("core:movement", true);
+        preferences.setCategoryHidden("category.with spaces/and punctuation", true);
+        preferences.setModHidden("example:mod.id", true);
+        preferences.save();
+
+        ClientPreferences reloaded = new ClientPreferences(file);
+        reloaded.load();
+        assertEquals(appearance, reloaded.appearance());
+        assertTrue(reloaded.isCategoryHidden("core:movement"));
+        assertEquals(Set.of("core:movement", "category.with spaces/and punctuation"), reloaded.hiddenCategories());
+        assertTrue(reloaded.isModHidden("example:mod.id"));
+        assertThrows(UnsupportedOperationException.class, () -> reloaded.hiddenCategories().add("other"));
+        assertThrows(UnsupportedOperationException.class, () -> reloaded.hiddenMods().clear());
+
+        reloaded.clearHiddenSections();
+        assertTrue(reloaded.hiddenCategories().isEmpty());
+        assertTrue(reloaded.hiddenMods().isEmpty());
+    }
+
+    @Test
+    void preferencesMergeIndependentAppearanceFieldsAndHiddenIds() throws IOException {
+        Path file = directory.resolve("preferences.properties");
+        ClientPreferences first = new ClientPreferences(file);
+        first.load();
+        ClientPreferences second = new ClientPreferences(file);
+        second.load();
+
+        first.setAppearance(new UiAppearance(80, 25, true, 0x123456, 0, 35));
+        first.setCategoryHidden("category:one", true);
+        first.setModHidden("mod:one", true);
+        second.setAppearance(new UiAppearance(100, 22, false, 0x94E4D3, 0x224466, 60));
+        second.setCategoryHidden("category:two", true);
+        second.setModHidden("mod:two", true);
+
+        first.save();
+        second.save();
+
+        ClientPreferences reloaded = new ClientPreferences(file);
+        reloaded.load();
+        assertEquals(new UiAppearance(80, 22, true, 0x123456, 0x224466, 60), reloaded.appearance());
+        assertEquals(Set.of("category:one", "category:two"), reloaded.hiddenCategories());
+        assertEquals(Set.of("mod:one", "mod:two"), reloaded.hiddenMods());
+    }
+
+    @Test
+    void preferencesConflictWhenTheSameAppearanceFieldChangesDifferently() throws IOException {
+        Path file = directory.resolve("preferences.properties");
+        ClientPreferences first = new ClientPreferences(file);
+        first.load();
+        ClientPreferences second = new ClientPreferences(file);
+        second.load();
+        first.setAppearance(new UiAppearance(75, 25, false, 0x94E4D3, 0, 35));
+        second.setAppearance(new UiAppearance(90, 25, false, 0x94E4D3, 0, 35));
+        first.save();
+        assertThrows(SharedSettingsConflictException.class, second::save);
+    }
+
+    @Test
+    void malformedNewPreferenceFieldsFallBackToDefaultsWithoutLosingExistingSettings() throws IOException {
+        Path file = directory.resolve("preferences.properties");
+        Files.writeString(file, "favorite.YWN0aW9uLm9uZQ=true\n"
+                + "ui.keyboardScale=not-a-number\n"
+                + "ui.rowHeight=1000\n"
+                + "ui.inputOnRight=maybe\n"
+                + "ui.accentColor=-1\n"
+                + "ui.panelColor=oops\n"
+                + "ui.panelOpacity=also-not-a-number\n"
+                + "ui.hiddenCategory.not-base64!=true\n"
+                + "ui.hiddenMod.bW9kOnRydWU=maybe\n");
+
+        ClientPreferences preferences = new ClientPreferences(file);
+        preferences.load();
+        assertTrue(preferences.isFavorite("action.one"));
+        assertEquals(new UiAppearance(100, 32, false, 0xFFFFFF, 0x000000, 35), preferences.appearance());
+        assertTrue(preferences.hiddenCategories().isEmpty());
+        assertTrue(preferences.hiddenMods().isEmpty());
     }
 
     @Test
@@ -412,6 +534,11 @@ class SharedSettingsTest {
         preferences.setSidebarRatio(0.9);
         assertEquals(0.65, preferences.sidebarRatio(), 0.000001);
         assertEquals(0.52, new ClientPreferences.State(Set.of(), Map.of()).sidebarRatio(), 0.000001);
+        assertEquals(UiAppearance.defaults(), new ClientPreferences.State(Set.of(), Map.of(), 0.5).appearance());
+        assertEquals(UiAppearance.defaults(), new ClientPreferences(directory.resolve("fresh.properties")).appearance());
+        assertEquals(new UiAppearance(100, 25, false, 0x94E4D3, 0, 35), UiAppearance.defaults());
+        assertEquals(new UiAppearance(60, 32, true, 0xFFFFFF, 0, 15),
+                new UiAppearance(20, 100, true, -1, 0x1000000, 2));
     }
 
     @Test

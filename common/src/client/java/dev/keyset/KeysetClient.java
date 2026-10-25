@@ -10,9 +10,11 @@ import dev.keyset.mixin.KeyMappingAccessor;
 import dev.keyset.mixin.MinecraftServerAccessor;
 import dev.keyset.profile.Binding;
 import dev.keyset.profile.ClientPreferences;
+import dev.keyset.profile.UiAppearance;
 import dev.keyset.profile.Profile;
 import dev.keyset.profile.ProfileStore;
 import dev.keyset.profile.ProfilePaths;
+import dev.keyset.profile.ProfileStorageMode;
 import dev.keyset.profile.SharedSettingsConflictException;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -36,6 +38,7 @@ public final class KeysetClient {
     private static final Map<String, Binding> chords = new HashMap<>();
     private static ProfileStore store;
     private static ClientPreferences preferences;
+    private static ProfileStorageMode profileStorageMode;
     private static Path settingsFile;
     private static boolean loaded;
     private static String error = "";
@@ -45,6 +48,7 @@ public final class KeysetClient {
     private static UndoState undoState;
     private static String lastGameContext;
     private static KeyMapping nextProfile;
+    private static KeyMapping previousProfile;
     private static KeyMapping.Category generalCategory;
     private static Map<String, Binding> liveBaseline = Map.of();
     private static boolean saving, refreshing;
@@ -72,6 +76,13 @@ public final class KeysetClient {
             nextProfile = new KeyMapping("keyset.next_profile", InputConstants.UNKNOWN.getValue(), generalCategory());
         }
         return nextProfile;
+    }
+
+    public static KeyMapping previousProfileMapping() {
+        if (previousProfile == null) {
+            previousProfile = new KeyMapping("keyset.previous_profile", InputConstants.UNKNOWN.getValue(), generalCategory());
+        }
+        return previousProfile;
     }
 
     private static KeyMapping.Category generalCategory() {
@@ -107,10 +118,16 @@ public final class KeysetClient {
         if (loaded || Minecraft.getInstance().options == null) return;
         ExternalHotkeys.initialize();
         loaded = true;
+        profileStorageMode = new ProfileStorageMode(ProfilePaths.instanceStorageModeFile(
+                Minecraft.getInstance().gameDirectory.toPath()));
+        try { profileStorageMode.load(); }
+        catch (IOException modeFailure) {
+            LOG.warn("Cannot load this installation's Keyset profile storage mode; using shared profiles", modeFailure);
+        }
         Path file = profileFile();
-        Path localFile = localProfileFile();
+        Path legacyLocalFile = localProfileFile();
         store = new ProfileStore(file);
-        Path preferencesFile = file.getParent().resolve("preferences.properties");
+        Path preferencesFile = sharedSettingsDirectory().resolve("preferences.properties");
         preferences = new ClientPreferences(preferencesFile);
         try { preferences.load(); }
         catch (IOException | IllegalArgumentException preferenceFailure) {
@@ -127,8 +144,8 @@ public final class KeysetClient {
         }
         Map<String, Binding> initial = snapshot();
         try {
-            store.load(initial, file.equals(localFile) ? null : localFile);
-            migrateLegacyProfiles(file, localFile);
+            store.load(initial, profilesShared() ? legacyLocalFile : null);
+            migrateLegacyProfiles(file, profilesShared() ? legacyLocalFile : file);
             apply(store.active());
         } catch (IOException | IllegalArgumentException ex) {
             LOG.error("Cannot load key profiles", ex);
@@ -161,6 +178,67 @@ public final class KeysetClient {
 
     public static ProfileStore profiles() { ensureLoaded(); return store; }
 
+    /** Whether profiles are shared between Minecraft installations. */
+    public static boolean profilesShared() {
+        ensureLoaded();
+        return profileStorageMode == null || profileStorageMode.isShared();
+    }
+
+    /** Switches profile storage for this installation without copying edits back on reattach. */
+    public static void setProfilesShared(boolean shared) throws IOException {
+        ensureLoaded();
+        if (profilesShared() == shared) return;
+
+        // Persist the active profile's latest live bindings before switching files.
+        save();
+        Path destination = shared ? sharedProfileFile() : instanceProfileFile();
+        ProfileStore nextStore = new ProfileStore(destination);
+        if (shared) {
+            // No legacy import here: switching modes must not merge or overwrite either profile set.
+            if (!Files.isRegularFile(destination)) {
+                throw new IOException("The shared Keyset profiles file is missing: " + destination);
+            }
+            nextStore.load(Map.of());
+        } else {
+            if (!Files.exists(destination)) store.copyTo(destination);
+            nextStore.load(snapshot());
+        }
+
+        Map<String, Binding> previousLive = snapshot();
+        boolean wasSaving = saving;
+        saving = true;
+        try {
+            apply(nextStore.active());
+            ExternalHotkeys.saveDirty();
+            Minecraft.getInstance().options.save();
+            Map<String, Binding> switchedLive = snapshot();
+            profileStorageMode.setShared(shared);
+            store = nextStore;
+            settingsFile = destination;
+            undoState = null;
+            pendingUndo = null;
+            pendingUndoInvalidated = false;
+            lastAssignment = null;
+            lastGameContext = null;
+            liveBaseline = switchedLive;
+            revision++;
+            error = "";
+        } catch (IOException | RuntimeException failure) {
+            restoreLive(previousLive, failure);
+            liveBaseline = snapshot();
+            try { Minecraft.getInstance().options.save(); }
+            catch (RuntimeException restoreFailure) { failure.addSuppressed(restoreFailure); }
+            if (failure instanceof IOException io) throw io;
+            throw new IOException("Cannot switch Keyset profile storage", failure);
+        } finally {
+            saving = wasSaving;
+        }
+    }
+
+    private static String profileRouteScope() {
+        return profilesShared() ? null : profileStorageMode.file().getParent().toString();
+    }
+
     private static void migrateLegacyProfiles(Path file, Path localFile) {
         ProfileStore.State checkpoint = store.checkpoint();
         ClientPreferences.State preferenceCheckpoint = preferences.checkpoint();
@@ -175,7 +253,7 @@ public final class KeysetClient {
             if (changed || !checkpoint.legacyDuplicateRepairComplete()) {
                 createBackup("migration");
                 if (!replacements.isEmpty()) {
-                    preferences.remapProfileRoutes(replacements);
+                    preferences.remapProfileRoutes(replacements, profileRouteScope());
                     // Retained profile IDs exist in both the old and repaired store if saving is interrupted.
                     persistPreferences();
                     preferencesWritten = true;
@@ -198,6 +276,54 @@ public final class KeysetClient {
     public static String error() { return error; }
     public static long revision() { return revision; }
     public static double sidebarRatio() { ensureLoaded(); return preferences.sidebarRatio(); }
+
+    public static UiAppearance appearance() { ensureLoaded(); return preferences.appearance(); }
+
+    public static void setAppearance(UiAppearance appearance) throws IOException {
+        editDisplayPreferences(() -> preferences.setAppearance(appearance));
+    }
+
+    public static void resetAppearance() throws IOException {
+        editDisplayPreferences(() -> {
+            preferences.setAppearance(UiAppearance.defaults());
+            preferences.setSidebarRatio(0.52);
+        });
+    }
+
+    public static boolean isCategoryHidden(String categoryId) { ensureLoaded(); return preferences.isCategoryHidden(categoryId); }
+    public static boolean isModHidden(String modId) { ensureLoaded(); return preferences.isModHidden(modId); }
+    public static int hiddenSectionCount() {
+        ensureLoaded();
+        return preferences.hiddenCategories().size() + preferences.hiddenMods().size();
+    }
+
+    public static void setCategoryHidden(String categoryId, boolean hidden) throws IOException {
+        editDisplayPreferences(() -> preferences.setCategoryHidden(categoryId, hidden));
+    }
+
+    public static void setModHidden(String modId, boolean hidden) throws IOException {
+        editDisplayPreferences(() -> preferences.setModHidden(modId, hidden));
+    }
+
+    public static void showAllSections() throws IOException {
+        editDisplayPreferences(() -> preferences.clearHiddenSections());
+    }
+
+    /** Display preferences never apply a profile or mutate live hotkeys. */
+    private static void editDisplayPreferences(Runnable edit) throws IOException {
+        ensureLoaded();
+        pendingUndo = null;
+        pendingUndoInvalidated = false;
+        ClientPreferences.State before = preferences.checkpoint();
+        try {
+            edit.run();
+            persistPreferences();
+            revision++;
+        } catch (IOException | RuntimeException failure) {
+            preferences.restore(before);
+            throw failure;
+        }
+    }
 
     public static void setSidebarRatio(double ratio) throws IOException {
         ensureLoaded();
@@ -262,7 +388,8 @@ public final class KeysetClient {
         var profileCheckpoint = store.reloadCheckpoint();
         var preferenceCheckpoint = preferences.reloadCheckpoint();
         CurrentContext context = currentContext();
-        String previousRoute = context == null ? null : preferences.profileFor(context.id());
+        String routeScope = profileRouteScope();
+        String previousRoute = context == null ? null : preferences.profileFor(context.id(), routeScope);
         try {
             boolean profilesChanged = store.reloadIfChanged();
             boolean preferencesChanged = preferences.reloadIfChanged();
@@ -277,7 +404,7 @@ public final class KeysetClient {
                 lastAssignment = null;
                 revision++;
                 error = "";
-                if (context != null && !Objects.equals(previousRoute, preferences.profileFor(context.id()))) lastGameContext = null;
+                if (context != null && !Objects.equals(previousRoute, preferences.profileFor(context.id(), routeScope))) lastGameContext = null;
             }
             return profilesChanged || preferencesChanged;
         } catch (IOException | RuntimeException failure) {
@@ -332,7 +459,7 @@ public final class KeysetClient {
 
     public static String routedProfile(String context) {
         ensureLoaded();
-        return preferences == null ? null : preferences.profileFor(context);
+        return preferences == null ? null : preferences.profileFor(context, profileRouteScope());
     }
 
     public static RouteResult toggleAutoProfile(String profileId) throws IOException {
@@ -343,7 +470,7 @@ public final class KeysetClient {
             Profile target = store.profiles().stream().filter(profile -> profile.id().equals(profileId)).findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Unknown profile"));
             UndoState before = captureUndo();
-            boolean enabled = preferences.toggleRoute(context.id(), profileId);
+            boolean enabled = preferences.toggleRoute(context.id(), profileId, profileRouteScope());
             try {
                 persistPreferences();
                 boolean switched = enabled && !store.active().id().equals(profileId);
@@ -585,10 +712,11 @@ public final class KeysetClient {
     private static void persistPreferences() throws IOException {
         ClientPreferences.State attempted = preferences.checkpoint();
         CurrentContext context = currentContext();
-        String previousRoute = context == null ? null : preferences.profileFor(context.id());
+        String routeScope = profileRouteScope();
+        String previousRoute = context == null ? null : preferences.profileFor(context.id(), routeScope);
         preferences.save();
         if (!attempted.equals(preferences.checkpoint())) { undoState = null; lastAssignment = null; }
-        if (context != null && !Objects.equals(previousRoute, preferences.profileFor(context.id()))) lastGameContext = null;
+        if (context != null && !Objects.equals(previousRoute, preferences.profileFor(context.id(), routeScope))) lastGameContext = null;
         if (pendingUndo != null) {
             try {
                 pendingUndo = new UndoState(pendingUndo.profiles(), pendingUndo.liveBindings(),
@@ -639,19 +767,27 @@ public final class KeysetClient {
 
     private static Path profileFile() {
         if (settingsFile != null) return settingsFile;
-        Path local = localProfileFile();
         try {
-            Map<String, String> properties = Map.of(
-                    "keyset.configDir", System.getProperty("keyset.configDir", ""),
-                    "user.home", System.getProperty("user.home", "."),
-                    "os.name", System.getProperty("os.name", ""));
-            Path shared = ProfilePaths.sharedDirectory(System.getenv(), properties).resolve("profiles.json");
-            settingsFile = shared;
+            settingsFile = profilesShared() ? sharedProfileFile() : instanceProfileFile();
         } catch (RuntimeException exception) {
             LOG.warn("Cannot resolve shared Keyset settings; using the current Minecraft folder", exception);
-            settingsFile = local;
+            settingsFile = instanceProfileFile();
         }
         return settingsFile;
+    }
+
+    private static Path sharedSettingsDirectory() {
+        Map<String, String> properties = Map.of(
+                "keyset.configDir", System.getProperty("keyset.configDir", ""),
+                "user.home", System.getProperty("user.home", "."),
+                "os.name", System.getProperty("os.name", ""));
+        return ProfilePaths.sharedDirectory(System.getenv(), properties);
+    }
+
+    private static Path sharedProfileFile() { return sharedSettingsDirectory().resolve("profiles.json"); }
+
+    private static Path instanceProfileFile() {
+        return ProfilePaths.instanceProfilesFile(Minecraft.getInstance().gameDirectory.toPath());
     }
 
     private static Path localProfileFile() {
@@ -834,7 +970,9 @@ public final class KeysetClient {
             Profile previous = store.active();
             try {
                 store.delete(id);
-                preferences.removeProfileRoutes(id);
+                String routeScope = profileRouteScope();
+                if (routeScope == null) preferences.removeProfileRoutes(id);
+                else preferences.removeProfileRoutes(id, routeScope);
                 apply(store.active());
                 persistPreferences();
                 ExternalHotkeys.saveDirty();
@@ -872,7 +1010,7 @@ public final class KeysetClient {
             pendingUndoInvalidated = false;
             try {
                 store.restore(target.profiles());
-                preferences.restore(target.preferences());
+                preferences.restore(target.preferences().withDisplayFrom(priorPreferences));
                 restoreLiveOrThrow(target.liveBindings());
                 ExternalHotkeys.saveDirty();
                 persistPreferences();
@@ -960,19 +1098,22 @@ public final class KeysetClient {
             if (Minecraft.getInstance().gui.screen() == null) Minecraft.getInstance().setScreenAndShow(new KeysetScreen(null));
         }
         while (nextProfileMapping().consumeClick()) {
-            if (Minecraft.getInstance().gui.screen() == null) cycleProfile();
+            if (Minecraft.getInstance().gui.screen() == null) cycleProfile(false);
+        }
+        while (previousProfileMapping().consumeClick()) {
+            if (Minecraft.getInstance().gui.screen() == null) cycleProfile(true);
         }
         updateContextRoute();
     }
 
-    private static void cycleProfile() {
+    private static void cycleProfile(boolean previous) {
         List<Profile> profiles = store.profiles();
         if (profiles.size() < 2) return;
         int active = 0;
         for (int i = 0; i < profiles.size(); i++) {
             if (profiles.get(i).id().equals(store.active().id())) { active = i; break; }
         }
-        Profile next = profiles.get((active + 1) % profiles.size());
+        Profile next = profiles.get(Math.floorMod(active + (previous ? -1 : 1), profiles.size()));
         try {
             switchProfile(next.id());
             if (Minecraft.getInstance().player != null) {
@@ -990,7 +1131,7 @@ public final class KeysetClient {
         if (Objects.equals(lastGameContext, contextId)) return;
         lastGameContext = contextId;
         if (context == null || preferences == null) return;
-        String profileId = preferences.profileFor(context.id());
+        String profileId = preferences.profileFor(context.id(), profileRouteScope());
         if (profileId == null || store.active().id().equals(profileId)) return;
         Profile profile = store.profiles().stream().filter(value -> value.id().equals(profileId)).findFirst().orElse(null);
         if (profile == null) return;

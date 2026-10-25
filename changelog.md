@@ -1,3 +1,20 @@
+# 1.1.0 - personalization and section visibility
+
+- Added per-instance profiles: switch between shared and independent profile sets in the profile menu. The first detach copies the current profiles; reconnecting preserves both sets without merging them. The choice is remembered for each instance.
+- Added the **Previous Key Profile** action, which cycles backward through profiles alongside **Next Key Profile**.
+- Added scoped action searches: #category and @mod, with quoted names, IDs, and combined filters. The Sections search also switches lists when using # or @.
+- Added an optional Mod Menu configuration button on Fabric, opening the Keyset editor.
+- Redesigned the mouse diagram with a wider symmetric shell, separate wheel label, integrated side buttons, and matching keycaps for M6-M8.
+- All keyboard and mouse buttons stay visible. Inputs used only by hidden mods or categories look unassigned; shared inputs keep their visible assignment highlights.
+- Restoring a section restores its assignment highlights; hotkeys remain active throughout.
+- Neutral-looking keys remain clickable for filtering and rebinding in both normal and compact layouts.
+
+- Fixed the numpad grid: aligned columns, double-height Add and Enter, and double-width zero.
+- Added a Style button with panel position, keyboard/mouse size, action row height, color presets, custom HEX colors, and panel opacity.
+- Added persistent hiding for any mod or category through Sections, plus a quick hide button on category headers. Hidden hotkeys stay active; real conflict checks still include them.
+- Appearance and section visibility use the shared preferences file and remain intact when undoing a binding change.
+- Mirrored panels keep their splitter and footer aligned when the window is resized.
+
 # 1.0.0 - первый выпуск Keyset
 
 - Первый релиз клиентского мода Keyset для Minecraft 26.3 на Fabric и NeoForge.

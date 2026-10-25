@@ -15,9 +15,10 @@ public abstract class OptionsMixin {
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void keyset$register(CallbackInfo ci) {
-        keyMappings = Arrays.copyOf(keyMappings, keyMappings.length + 2);
+        keyMappings = Arrays.copyOf(keyMappings, keyMappings.length + 3);
         keyMappings[keyMappings.length - 1] = KeysetClient.openMapping();
         keyMappings[keyMappings.length - 2] = KeysetClient.nextProfileMapping();
+        keyMappings[keyMappings.length - 3] = KeysetClient.previousProfileMapping();
     }
 
     @Inject(method = "save", at = @At("TAIL"))

@@ -213,7 +213,8 @@ def main():
                 failures[language] = str(error)
                 print('unavailable',language,str(error),flush=True)
 
-    manifest = {'minecraft':'26.3','release':'1.0.0','sourceHash':source_hash,'locales':{},'unavailableProviders':failures}
+    release = re.search(r"version\s*=\s*'([^']+)'", (ROOT / 'build.gradle').read_text(encoding='utf-8')).group(1)
+    manifest = {'minecraft':'26.3','release':release,'sourceHash':source_hash,'locales':{},'unavailableProviders':failures}
     for locale in sorted(catalogs):
         if locale == 'ru_ru':
             values, mode = russian, 'reviewed'

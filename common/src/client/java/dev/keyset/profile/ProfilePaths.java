@@ -26,6 +26,20 @@ public final class ProfilePaths {
         return minecraftRoot.resolve("config/keyset").toAbsolutePath().normalize();
     }
 
+    /** Resolves settings that belong to one Minecraft installation. */
+    public static Path instanceDirectory(Path gameDirectory) {
+        return gameDirectory.toAbsolutePath().normalize().resolve("config/keyset");
+    }
+
+    /** Separate from the old profiles.json file, which is retained as a one-time migration source. */
+    public static Path instanceProfilesFile(Path gameDirectory) {
+        return instanceDirectory(gameDirectory).resolve("profiles-local.json");
+    }
+
+    public static Path instanceStorageModeFile(Path gameDirectory) {
+        return instanceDirectory(gameDirectory).resolve("profile-storage.properties");
+    }
+
     private static String firstNonBlank(String first, String second) {
         if (first != null && !first.isBlank()) return first.trim();
         return second != null && !second.isBlank() ? second.trim() : null;

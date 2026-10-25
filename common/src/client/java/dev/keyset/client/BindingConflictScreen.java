@@ -117,25 +117,25 @@ public final class BindingConflictScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
-        KeysetWidgets.drawText(graphics, font, title, panelX + 12, panelY + 12, panelWidth - 24, KeysetWidgets.TEXT);
+        KeysetWidgets.drawText(graphics, font, title, panelX + 12, panelY + 12, panelWidth - 24, UiTheme.text());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.conflict_action", KeysetClient.actionName(actionId)),
-                panelX + 12, panelY + 34, panelWidth - 24, KeysetWidgets.TEXT);
+                panelX + 12, panelY + 34, panelWidth - 24, UiTheme.text());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.conflict_binding",
                 action == null ? Component.empty() : KeysetClient.displayBinding(KeysetClient.binding(action))),
-                panelX + 12, panelY + 50, panelWidth - 24, KeysetWidgets.TEAL);
+                panelX + 12, panelY + 50, panelWidth - 24, UiTheme.text());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.conflict_peers", peers.size()),
-                panelX + 12, panelY + 70, panelWidth - 24, KeysetWidgets.MUTED);
+                panelX + 12, panelY + 70, panelWidth - 24, UiTheme.muted());
         for (int slot = 0; slot < capacity && scroll + slot < peers.size(); slot++) {
             int y = listTop + slot * 32;
             KeyMapping peer = peers.get(scroll + slot);
-            graphics.fill(panelX + 8, y, panelX + panelWidth - 8, y + 29, KeysetWidgets.ROW);
+            graphics.fill(panelX + 8, y, panelX + panelWidth - 8, y + 29, UiTheme.row());
             KeysetWidgets.drawText(graphics, font, KeysetClient.categoryLabel(peer.getCategory()).copy()
-                    .append(" · ").append(KeysetClient.owner(peer).name()), panelX + 14, y + 17, panelWidth - 28, KeysetWidgets.MUTED);
+                    .append(" · ").append(KeysetClient.owner(peer).name()), panelX + 14, y + 17, panelWidth - 28, UiTheme.muted());
         }
         if (peers.isEmpty()) KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.conflict_gone"),
-                panelX + 12, listTop + 8, panelWidth - 24, KeysetWidgets.MUTED);
+                panelX + 12, listTop + 8, panelWidth - 24, UiTheme.muted());
         if (error != null) KeysetWidgets.drawText(graphics, font, error, panelX + 12,
-                panelY + panelHeight - 23, panelWidth - 24, KeysetWidgets.RED);
+                panelY + panelHeight - 23, panelWidth - 24, UiTheme.red());
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
     }
 

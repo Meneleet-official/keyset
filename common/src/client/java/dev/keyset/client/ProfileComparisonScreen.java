@@ -308,53 +308,53 @@ public final class ProfileComparisonScreen extends Screen {
         if (refreshModelIfChanged()) init();
 
         KeysetWidgets.drawCard(graphics, panelX, 48, panelWidth, Math.max(1, height - 96));
-        graphics.text(font, Component.translatable("keyset.compare_title"), 18, 17, KeysetWidgets.TEXT);
+        graphics.text(font, Component.translatable("keyset.compare_title"), 18, 17, 0xFFFFFFFF);
         int summaryX = Math.max(150, width - 225);
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_summary",
             differences.size(), selectedActionIds.size()), summaryX, 20,
-            Math.max(1, width - 18 - summaryX), KeysetWidgets.MUTED);
+            Math.max(1, width - 18 - summaryX), 0xFFB2B7B5);
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_hint"), 18, 34,
-            Math.max(1, width - 36), KeysetWidgets.MUTED);
+            Math.max(1, width - 36), 0xFFB2B7B5);
 
         int targetLabelX = panelX + 18 + Math.max(70, (panelWidth - 42) / 2) + 10;
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_source_label"),
-            panelX + 12, 58, Math.max(1, (panelWidth - 42) / 2), KeysetWidgets.MUTED);
+            panelX + 12, 58, Math.max(1, (panelWidth - 42) / 2), UiTheme.muted());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_target_label"),
-            targetLabelX, 58, Math.max(1, panelWidth - (targetLabelX - panelX) - 12), KeysetWidgets.MUTED);
+            targetLabelX, 58, Math.max(1, panelWidth - (targetLabelX - panelX) - 12), UiTheme.muted());
         Component targetName = targetProfile == null ? Component.translatable("keyset.compare_no_target")
             : Component.literal(targetProfile.name());
         KeysetWidgets.drawText(graphics, font, targetName, targetLabelX, 80,
-            Math.max(1, panelX + panelWidth - targetLabelX - 14), KeysetWidgets.TEXT);
+            Math.max(1, panelX + panelWidth - targetLabelX - 14), UiTheme.text());
 
-        graphics.fill(panelX + 12, 101, panelX + panelWidth - 12, 102, KeysetWidgets.BORDER);
+        graphics.fill(panelX + 12, 101, panelX + panelWidth - 12, 102, UiTheme.border());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_action_column"),
-            nameX + 4, 111, nameWidth - 8, KeysetWidgets.MUTED);
+            nameX + 4, 111, nameWidth - 8, UiTheme.muted());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_source_column"),
-            sourceX + 4, 111, bindingWidth - 8, KeysetWidgets.MUTED);
+            sourceX + 4, 111, bindingWidth - 8, UiTheme.muted());
         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_target_column"),
-            targetX + 4, 111, targetWidth - 8, KeysetWidgets.MUTED);
+            targetX + 4, 111, targetWidth - 8, UiTheme.muted());
 
         for (int slot = 0; slot < rowSelectButtons.size(); slot++) {
             int index = scroll + slot;
             if (index >= differences.size() || listTop + slot * ROW_HEIGHT + 26 > listBottom) continue;
             int y = listTop + slot * ROW_HEIGHT - 2;
             graphics.fill(rowLeft - 3, y, rowLeft + rowWidth, y + ROW_HEIGHT - 2,
-                (index & 1) == 0 ? KeysetWidgets.ROW : KeysetWidgets.ROW_ALTERNATE);
+                (index & 1) == 0 ? UiTheme.row() : UiTheme.rowAlternate());
         }
         if (differences.isEmpty()) {
             Component empty = sourceProfile == null ? Component.translatable("keyset.compare_no_source")
                 : Component.translatable("keyset.compare_no_differences");
             KeysetWidgets.drawText(graphics, font, empty, panelX + 18, listTop + 5,
-                Math.max(1, panelWidth - 36), KeysetWidgets.MUTED);
+                Math.max(1, panelWidth - 36), UiTheme.muted());
         }
         int copyableCount = (int) differences.stream().filter(DiffRow::copyable).count();
         if (copyableCount < differences.size()) {
             KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_missing_source_hint"),
-                panelX + 12, listBottom + 1, Math.max(1, panelWidth - 24), KeysetWidgets.MUTED);
+                panelX + 12, listBottom + 1, Math.max(1, panelWidth - 24), UiTheme.muted());
         }
         if (statusMessage != null) {
             KeysetWidgets.drawText(graphics, font, statusMessage, 18, height - 27,
-                Math.max(1, applyButton.getX() - 24), statusIsError ? KeysetWidgets.RED : KeysetWidgets.MUTED);
+                Math.max(1, applyButton.getX() - 24), statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
         }
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
     }
