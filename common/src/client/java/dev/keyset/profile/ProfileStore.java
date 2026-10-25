@@ -358,8 +358,8 @@ public final class ProfileStore {
         int imported = 0;
         for (Profile source : incoming) {
             if (profiles.stream().anyMatch(existing -> existing.bindings().equals(source.bindings())
-                    && (existing.id().equals(source.id()) || existing.name().equals(source.name())
-                        || existing.name().startsWith(source.name() + " (")))) continue;
+                    && (existing.id().equals(source.id()) || existing.name().equalsIgnoreCase(source.name())
+                        || isImportedCopyName(source.name(), existing.name())))) continue;
             String name = uniqueImportedName(source.name());
             profiles.add(new Profile(UUID.randomUUID().toString(), name, source.bindings()));
             imported++;

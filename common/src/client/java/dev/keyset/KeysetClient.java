@@ -147,7 +147,7 @@ public final class KeysetClient {
             store.load(initial, profilesShared() ? legacyLocalFile : null);
             migrateLegacyProfiles(file, profilesShared() ? legacyLocalFile : file);
             apply(store.active());
-        } catch (IOException | IllegalArgumentException ex) {
+        } catch (IOException | RuntimeException ex) {
             LOG.error("Cannot load key profiles", ex);
             restoreLive(initial, ex);
             // Preserve the exact unreadable file; never overwrite it with defaults.
@@ -260,7 +260,7 @@ public final class KeysetClient {
                 }
                 store.save();
             }
-        } catch (IOException | IllegalArgumentException migrationFailure) {
+        } catch (IOException | RuntimeException migrationFailure) {
             store.restore(checkpoint);
             preferences.restore(pendingUndo == null ? preferenceCheckpoint : pendingUndo.preferences());
             if (preferencesWritten) {
@@ -334,7 +334,7 @@ public final class KeysetClient {
             preferences.setSidebarRatio(ratio);
             persistPreferences();
             revision++;
-        } catch (IOException failure) {
+        } catch (IOException | RuntimeException failure) {
             preferences.restore(before);
             throw failure;
         }
@@ -431,7 +431,7 @@ public final class KeysetClient {
                 persistPreferences();
                 rememberUndo(before);
                 revision++;
-            } catch (IOException failure) {
+            } catch (IOException | RuntimeException failure) {
                 rollbackOperation(before, failure);
                 throw failure;
             }
@@ -552,7 +552,7 @@ public final class KeysetClient {
                 save();
                 rememberUndo(before);
                 lastAssignment = null;
-            } catch (IOException failure) {
+            } catch (IOException | RuntimeException failure) {
                 rollbackOperation(before, failure);
                 throw failure;
             }
@@ -585,7 +585,7 @@ public final class KeysetClient {
                 save();
                 rememberUndo(before);
                 lastAssignment = null;
-            } catch (IOException failure) {
+            } catch (IOException | RuntimeException failure) {
                 rollbackOperation(before, failure);
                 throw failure;
             }
@@ -751,9 +751,9 @@ public final class KeysetClient {
             restoreLive(rollback.liveBindings(), failure);
             liveBaseline = snapshot();
             try { persistPreferences(); }
-            catch (IOException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            catch (IOException | RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
             try { persistProfiles(); }
-            catch (IOException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            catch (IOException | RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
         }
         try { refreshFromSharedSettings(); }
         catch (IOException | RuntimeException refreshFailure) { failure.addSuppressed(refreshFailure); }
@@ -829,7 +829,7 @@ public final class KeysetClient {
                 int imported = store.importDirectory(transferDirectory());
                 if (imported > 0) { persistProfiles(); rememberUndo(before); revision++; }
                 return imported;
-            } catch (IOException | IllegalArgumentException exception) {
+            } catch (IOException | RuntimeException exception) {
                 rollbackOperation(before, exception);
                 throw exception;
             }
@@ -851,9 +851,9 @@ public final class KeysetClient {
                 rememberUndo(before);
                 lastAssignment = new LastAssignment(store.active().id(), mapping.getName(), previous, binding(mapping));
             }
-            catch (IOException ex) {
-                rollbackOperation(before, ex);
-                throw ex;
+            catch (IOException | RuntimeException failure) {
+                rollbackOperation(before, failure);
+                throw failure;
             }
         } finally {
             clearPendingOperation();
@@ -865,12 +865,13 @@ public final class KeysetClient {
             Binding binding = previous.get(mapping.getName());
             if (binding != null) {
                 try { assign(mapping, binding); }
-                catch (IOException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+                catch (IOException | RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
             }
         }
-        KeyMapping.resetMapping();
+        try { KeyMapping.resetMapping(); }
+        catch (RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
         try { ExternalHotkeys.saveDirty(); }
-        catch (IOException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+        catch (IOException | RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
     }
 
     public static void reset(KeyMapping mapping) throws IOException {
@@ -890,9 +891,9 @@ public final class KeysetClient {
                 save();
                 rememberUndo(before);
             }
-            catch (IOException ex) {
-                rollbackOperation(before, ex);
-                throw ex;
+            catch (IOException | RuntimeException failure) {
+                rollbackOperation(before, failure);
+                throw failure;
             }
         } finally {
             clearPendingOperation();
@@ -909,7 +910,7 @@ public final class KeysetClient {
                 rememberUndo(before);
                 revision++;
                 lastAssignment = null;
-            } catch (IOException ex) { rollbackOperation(before, ex); throw ex; }
+            } catch (IOException | RuntimeException failure) { rollbackOperation(before, failure); throw failure; }
         } finally {
             clearPendingOperation();
         }
@@ -956,7 +957,7 @@ public final class KeysetClient {
             UndoState before = captureUndo();
             var checkpoint = store.checkpoint();
             try { store.rename(id, name); persistProfiles(); rememberUndo(before); revision++; }
-            catch (IOException ex) { rollbackOperation(before, ex); throw ex; }
+            catch (IOException | RuntimeException failure) { rollbackOperation(before, failure); throw failure; }
         } finally {
             clearPendingOperation();
         }
@@ -1218,10 +1219,10 @@ public final class KeysetClient {
             Map<String, Binding> current = snapshot();
             if (store.active().bindings().entrySet().containsAll(current.entrySet())) return;
             save();
-        } catch (IOException ex) {
-            error = ex instanceof SharedSettingsConflictException ? "keyset.error.shared_conflict" : "keyset.error.storage";
+        } catch (IOException | RuntimeException failure) {
+            error = failure instanceof SharedSettingsConflictException ? "keyset.error.shared_conflict" : "keyset.error.storage";
             revision++;
-            LOG.error("Cannot save key profiles", ex);
+            LOG.error("Cannot save key profiles", failure);
         }
     }
 

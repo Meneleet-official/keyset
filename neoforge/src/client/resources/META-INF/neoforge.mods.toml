@@ -6,8 +6,8 @@ modId="keyset"
 version="${version}"
 displayName="Keyset"
 logoFile="assets/keyset/icon.png"
-authors="Keyset contributors; Einjerjar (original Keymap)"
-description='''Visual key remapping with named hotkey profiles. Based on Keymap by Einjerjar.'''
+authors="Meneleet; Macronux"
+description='''Visual key remapping with named hotkey profiles.'''
 [[mixins]]
 config="keyset.mixins.json"
 [[mixins]]

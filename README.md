@@ -46,4 +46,4 @@ The JAR files are placed in `build/mods/`.
 
 ## License and credits
 
-Keyset is distributed under the **ISC License**. It is based on [Keymap by Einjerjar](https://github.com/Einjerjar/keymap), and the original copyright notice is retained. Keyboard layout data is distributed under a separate Unicode license; see `LICENSE-KEYBOARD-DATA.txt`.
+Keyset is distributed under the **ISC License**. The original ISC copyright and permission notice is retained in `LICENSE`. Keyboard layout data is distributed under a separate Unicode license; see `LICENSE-KEYBOARD-DATA.txt`.

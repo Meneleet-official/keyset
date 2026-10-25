@@ -1,3 +1,15 @@
+# 1.1.1 - reliability fixes
+
+- Fixed rollback of key changes when a hotkey provider or save operation throws a runtime error.
+- Made profile import deduplication case-insensitive so profiles are not duplicated when their names differ only by letter case.
+- Updated mod author and project metadata.
+
+# 1.1.1 - исправления стабильности
+
+- Исправлен откат назначения клавиш при runtime-ошибке провайдера или сохранения.
+- Убран повторный импорт профилей, если их имена отличаются только регистром букв.
+- Обновлены сведения об авторах и метаданные проекта.
+
 # 1.1.0 - personalization and section visibility
 
 - Added per-instance profiles: switch between shared and independent profile sets in the profile menu. The first detach copies the current profiles; reconnecting preserves both sets without merging them. The choice is remembered for each instance.
