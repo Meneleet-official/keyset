@@ -3,7 +3,7 @@ package dev.keyset.profile;
 /** Pure color palette calculations for the action editor's translucent appearance settings. */
 public final class AppearancePalette {
     private static final int DARK_BACKDROP = 0x202020;
-    private static final double MIN_TEXT_CONTRAST = 4.6;
+    private static final double MIN_TEXT_CONTRAST = 4.5;
 
     private final UiAppearance appearance;
     private final int effectiveSurface;
@@ -21,6 +21,10 @@ public final class AppearancePalette {
     private final int keyShadow;
     private final int keyFace;
     private final int keyEdge;
+    private final KeyColors boundKeys;
+    private final KeyColors conflictKeys;
+    private final KeyColors unboundKeys;
+    private final KeyColors neutralKeys;
     private final int accentText;
 
     private AppearancePalette(UiAppearance appearance) {
@@ -50,6 +54,12 @@ public final class AppearancePalette {
         keyFace = readableOverlay(effectiveSurface,
                 mix(effectiveSurface, appearance.accentColor(), 0.12), text, 0xE0);
         keyEdge = opaque(mix(effectiveSurface, appearance.accentColor(), 0.64));
+        boundKeys = coloredKeys(appearance.boundKeyColor());
+        conflictKeys = coloredKeys(appearance.conflictKeyColor());
+        KeyColors free = coloredKeys(appearance.unboundKeyColor());
+        unboundKeys = new KeyColors(free.face(), free.edge(), idleKeyText(free.face()));
+        int neutralFace = opaque(mix(keySurface(), appearance.accentColor(), .12));
+        neutralKeys = new KeyColors(neutralFace, keyEdge, idleKeyText(neutralFace));
 
         int selectedSurface = composite(effectiveSurface, selected & 0xFFFFFF, alpha(selected) / 255.0);
         accentText = contrastText(selectedSurface);
@@ -69,6 +79,8 @@ public final class AppearancePalette {
     public int text() { return text; }
     public int muted() { return muted; }
     public int accent() { return opaque(appearance.accentColor()); }
+    /** Opaque mouse shell color, kept exact so custom colors survive the palette conversion. */
+    public int mouseBodyColor() { return opaque(appearance.mouseBodyColor()); }
     public int red() { return red; }
     public int conflictSurface() { return conflictSurface; }
     public int conflictHover() { return conflictHover; }
@@ -82,6 +94,47 @@ public final class AppearancePalette {
     public int keyFace() { return keyFace; }
     public int keyEdge() { return keyEdge; }
     public int effectiveSurface() { return effectiveSurface; }
+
+    /** Conflicts always retain their own type color, including keys with several bindings. */
+    public KeyColors keyColors(boolean assigned, boolean conflict, boolean unbound) {
+        return conflict ? conflictKeys : assigned ? boundKeys : unbound ? unboundKeys : neutralKeys;
+    }
+
+    public record KeyColors(int face, int edge, int text) {}
+
+    private KeyColors coloredKeys(int color) {
+        int surface = keySurface();
+        int face = opaque(composite(surface, mix(surface, color, .50), 232 / 255.0));
+        return new KeyColors(face, opaque(color), contrastText(face));
+    }
+
+    /** Light themes keep light physical keycaps even when their panel is translucent. */
+    private int keySurface() {
+        return contrastText(appearance.panelColor()) == 0xFF000000 ? appearance.panelColor() : effectiveSurface;
+    }
+
+    public int keyLegendColor(boolean assigned, boolean conflict, boolean unbound, boolean emphasized) {
+        KeyColors colors = keyColors(assigned, conflict, unbound);
+        return emphasized ? contrastText(colors.face()) : colors.text();
+    }
+
+    /** Idle legends are neutral gray; custom key faces still get readable text. */
+    private int idleKeyText(int surface) {
+        int foreground = contrastText(surface);
+        if (foreground == 0xFF000000) return foreground;
+        int gray = foreground == 0xFFFFFFFF ? 0xB8B8B8 : 0x4A4A4A;
+        int endpoint = foreground & 0xFFFFFF;
+        for (int step = 0; step <= 100; step++) {
+            int candidate = mix(gray, endpoint, step / 100.0);
+            if (contrastRatio(candidate, surface) >= MIN_TEXT_CONTRAST) return opaque(candidate);
+        }
+        return foreground;
+    }
+
+    /** Keycaps have an opaque outline underneath; use the surface assumed by contrast checks. */
+    public int keycapSurface(int overlay) {
+        return opaque(composite(effectiveSurface, overlay, alpha(overlay) / 255.0));
+    }
 
     /** Light buttons can also sit outside a card; retain their tested surface there. */
     public int widgetSurface(int overlay) {

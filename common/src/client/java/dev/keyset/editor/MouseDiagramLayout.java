@@ -2,125 +2,93 @@ package dev.keyset.editor;
 
 import java.util.List;
 
-/** Pure geometry for the mouse diagram and its clickable controls. */
-public record MouseDiagramLayout(Rect body, List<Part> buttons, Rect extraLabel) {
-    private static final int BODY_MAX_HEIGHT = 128;
-    private static final int BODY_MIN_HEIGHT = 72;
+/** Uniformly scaled artwork and shape-aware hit regions for the two mouse views. */
+public record MouseDiagramLayout(Rect body, Rect sideBody, Rect topViewLabel, Rect sideViewLabel,
+                                List<Part> buttons, Rect extraLabel) {
+    private static final int ART_WIDTH = 286, ART_HEIGHT = 172;
 
-    public MouseDiagramLayout {
-        buttons = List.copyOf(buttons);
+    public MouseDiagramLayout { buttons = List.copyOf(buttons); }
+
+    public MouseDiagramLayout(Rect body, List<Part> buttons, Rect extraLabel) {
+        this(body, new Rect(0, 0, 0, 0), new Rect(0, 0, 0, 0), new Rect(0, 0, 0, 0), buttons, extraLabel);
     }
 
-    public enum Control {
-        LEFT, RIGHT, MIDDLE, SIDE4, SIDE5, EXTRA6, EXTRA7, EXTRA8
-    }
-
+    public enum Control { LEFT, RIGHT, MIDDLE, SIDE4, SIDE5, EXTRA6, EXTRA7, EXTRA8 }
     public record Part(Control control, Rect bounds) {}
-
     public record Rect(int x, int y, int width, int height) {
         public int right() { return x + width; }
         public int bottom() { return y + height; }
+        public boolean contains(double px, double py) {
+            return px >= x && py >= y && px < right() && py < bottom();
+        }
+        public Rect scaled(int factor) { return new Rect(x * factor, y * factor, width * factor, height * factor); }
     }
 
-    /**
-     * Creates a top-view mouse layout inside the supplied editor area.
-     * Scale is clamped to 1..100 percent so the layout always fits its height.
-     */
     public static MouseDiagramLayout forArea(int x, int y, int width, int height, int scalePercent) {
-        if (width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("Mouse diagram area must have positive dimensions");
+        if (width < 1 || height < 1) throw new IllegalArgumentException("Mouse area must be positive");
+        double fit = Math.min(Math.max(1, width - 8) / (double) ART_WIDTH,
+                             Math.max(1, height - 6) / (double) ART_HEIGHT);
+        double requested = fit * Math.max(1, Math.min(100, scalePercent)) / 100.0;
+        double scale = requested;
+        int left = x + (width - (int) Math.round(ART_WIDTH * scale)) / 2;
+        int top = y + (height - (int) Math.round(ART_HEIGHT * scale)) / 2;
+        Transform t = new Transform(left, top, scale);
+        Rect body = t.rect(0, 18, 124, 146);
+        Rect side = t.rect(132, 43, 154, 70);
+        return new MouseDiagramLayout(body, side, t.rect(0, 0, 124, 12), t.rect(132, 23, 154, 12), List.of(
+            new Part(Control.LEFT, t.rect(3, 20, 58, 66)),
+            new Part(Control.RIGHT, t.rect(63, 20, 58, 66)),
+            new Part(Control.MIDDLE, t.rect(55, 29, 14, 35)),
+            new Part(Control.SIDE5, t.rect(174, 72, 43, 22)),
+            new Part(Control.SIDE4, t.rect(221, 72, 43, 22)),
+            new Part(Control.EXTRA6, t.rect(145, 137, 36, 22)),
+            new Part(Control.EXTRA7, t.rect(188, 137, 36, 22)),
+            new Part(Control.EXTRA8, t.rect(231, 137, 36, 22))), t.rect(136, 119, 140, 12));
+    }
+
+    /** The wheel reserves its actual shape, rather than stealing either primary button's rectangle. */
+    public Control controlAt(double x, double y) {
+        Part wheel = part(Control.MIDDLE);
+        if (wheel != null && contains(wheel, x, y)) return Control.MIDDLE;
+        for (Part part : buttons) {
+            if (part.control() != Control.MIDDLE && contains(part, x, y)) return part.control();
         }
+        return null;
+    }
 
-        int scale = Math.max(1, Math.min(100, scalePercent));
-        int availableHeight = Math.max(1, height - 8);
-        int nominalHeight = Math.min(BODY_MAX_HEIGHT, availableHeight);
-        int scaledHeight = scaled(nominalHeight, scale);
-        int minimumHeight = availableHeight >= BODY_MIN_HEIGHT
-            ? BODY_MIN_HEIGHT
-            : Math.min(32, availableHeight);
-        int bodyHeight = Math.min(availableHeight, Math.max(minimumHeight, scaledHeight));
-        int bodyWidth = even(Math.round(bodyHeight * 0.82f));
+    public boolean hitTest(Control control, double x, double y) { return controlAt(x, y) == control; }
 
-        int sideWidth = Math.max(18, scaled(22, scale));
-        int sideOverhang = sideWidth - 4;
-        int extraGap = Math.max(16, scaled(20, scale));
-        int extraWidth = Math.max(22, Math.min(width < 224 ? 24 : 28, scaled(28, scale)));
-        int extraHeight = Math.max(18, scaled(20, scale));
-        int extraSpacing = scaled(5, scale);
-        int extraRowWidth = extraWidth * 3 + extraSpacing * 2;
-        int maximumBodyWidth = width - sideOverhang - 8 - extraRowWidth;
-        while (bodyHeight > 32 && bodyWidth > maximumBodyWidth) {
-            bodyHeight--;
-            bodyWidth = even(Math.round(bodyHeight * 0.82f));
+    public Part part(Control control) {
+        return buttons.stream().filter(part -> part.control() == control).findFirst().orElse(null);
+    }
+
+    private boolean contains(Part part, double x, double y) {
+        if (!part.bounds().contains(x, y)) return false;
+        var shape = switch (part.control()) {
+            case LEFT -> MouseContours.Shape.LEFT;
+            case RIGHT -> MouseContours.Shape.RIGHT;
+            case MIDDLE -> MouseContours.Shape.WHEEL;
+            case SIDE5 -> MouseContours.Shape.SIDE_FRONT;
+            case SIDE4 -> MouseContours.Shape.SIDE_REAR;
+            default -> null;
+        };
+        return shape == null || MouseContours.contains(shape, part.bounds(), x, y);
+    }
+
+    /** Artwork is sampled at a higher resolution while hitboxes remain in GUI coordinates. */
+    public MouseDiagramLayout scaled(int factor) {
+        return new MouseDiagramLayout(body.scaled(factor), sideBody.scaled(factor), topViewLabel.scaled(factor),
+            sideViewLabel.scaled(factor), buttons.stream().map(part -> new Part(part.control(),
+                part.bounds().scaled(factor))).toList(), extraLabel.scaled(factor));
+    }
+
+    private record Transform(int x, int y, double scale) {
+        Rect rect(int left, int top, int width, int height) {
+            int firstX = (int) Math.round(left * scale), firstY = (int) Math.round(top * scale);
+            return new Rect(x + firstX, y + firstY,
+                Math.max(1, (int) Math.round((left + width) * scale) - firstX),
+                Math.max(1, (int) Math.round((top + height) * scale) - firstY));
         }
-        extraGap = Math.min(extraGap, Math.max(4, width - sideOverhang - bodyWidth - extraRowWidth));
-        int groupWidth = sideOverhang + bodyWidth + extraGap + extraRowWidth;
-
-        int groupX = x + (width - groupWidth) / 2;
-        int bodyX = groupX + sideOverhang;
-        int bodyY = y + (height - bodyHeight) / 2;
-        Rect body = new Rect(bodyX, bodyY, bodyWidth, bodyHeight);
-
-        int topInset = Math.max(6, Math.min(8, scaled(8, scale)));
-        int horizontalInset = Math.min(topInset, Math.max(1, bodyWidth / 8));
-        int wheelChannel = Math.min(Math.max(16, scaledEven(18, scale)), evenFloor(bodyWidth / 3));
-        int primaryWidth = Math.max(1, (bodyWidth - horizontalInset * 2 - wheelChannel) / 2);
-        int primaryHeight = Math.max(1, Math.round(bodyHeight * 0.44f));
-        int primaryY = bodyY + topInset;
-        int centerX = bodyX + bodyWidth / 2;
-
-        Rect left = new Rect(bodyX + horizontalInset, primaryY, primaryWidth, primaryHeight);
-        Rect right = new Rect(centerX + wheelChannel / 2, primaryY, primaryWidth, primaryHeight);
-        Rect middle = new Rect(centerX - wheelChannel / 2, primaryY, wheelChannel, primaryHeight);
-
-        int sideBottomInset = Math.min(2, bodyHeight / 10);
-        int sideBottom = bodyHeight - sideBottomInset;
-        int sideHeight = Math.min(Math.max(16, scaled(18, scale)), Math.max(1, (bodyHeight - 8) / 2));
-        int sideOneY = bodyY + Math.round(bodyHeight * 0.49f);
-        int sideTwoY = sideOneY + sideHeight + 5;
-        if (sideTwoY - bodyY + sideHeight > sideBottom) {
-            sideTwoY = bodyY + sideBottom - sideHeight;
-            sideOneY = Math.min(sideOneY, sideTwoY - sideHeight - 4);
-        }
-        int sideX = bodyX - sideOverhang;
-        Rect side4 = new Rect(sideX, sideOneY, sideWidth, sideHeight);
-        Rect side5 = new Rect(sideX, sideTwoY, sideWidth, sideHeight);
-
-        int extraX = body.right() + extraGap;
-        int extraCenterY = bodyY + Math.round(bodyHeight * 0.58f);
-        int extraY = extraCenterY - extraHeight / 2;
-        int labelHeight = Math.min(scaled(12, scale), Math.max(4, bodyHeight / 6));
-        int labelGap = Math.min(scaled(4, scale), Math.max(2, bodyHeight / 16));
-        Rect extraLabel = new Rect(extraX, extraY - labelGap - labelHeight, extraRowWidth, labelHeight);
-
-        Rect extra6 = new Rect(extraX, extraY, extraWidth, extraHeight);
-        Rect extra7 = new Rect(extra6.right() + extraSpacing, extraY, extraWidth, extraHeight);
-        Rect extra8 = new Rect(extra7.right() + extraSpacing, extraY, extraWidth, extraHeight);
-
-        return new MouseDiagramLayout(body, List.of(
-            new Part(Control.LEFT, left),
-            new Part(Control.RIGHT, right),
-            new Part(Control.MIDDLE, middle),
-            new Part(Control.SIDE4, side4),
-            new Part(Control.SIDE5, side5),
-            new Part(Control.EXTRA6, extra6),
-            new Part(Control.EXTRA7, extra7),
-            new Part(Control.EXTRA8, extra8)), extraLabel);
-    }
-
-    private static int scaled(int value, int percent) {
-        return Math.max(1, (value * percent + 50) / 100);
-    }
-
-    private static int scaledEven(int value, int percent) {
-        return Math.max(2, even(scaled(value, percent)));
-    }
-
-    private static int even(int value) {
-        return Math.max(2, Math.round(value / 2.0f) * 2);
-    }
-
-    private static int evenFloor(int value) {
-        return Math.max(2, value - Math.floorMod(value, 2));
     }
 }
+

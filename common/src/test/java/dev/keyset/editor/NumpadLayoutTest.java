@@ -20,6 +20,8 @@ class NumpadLayoutTest {
         }
         assertEquals(17, inputs.size());
         assertEquals(20, occupied.size());
+        assertTrue(inputs.contains("key.keyboard.keypad.period"));
+        assertFalse(inputs.contains("key.keyboard.keypad.decimal"));
     }
 
     @Test

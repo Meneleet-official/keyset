@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -16,6 +17,7 @@ import java.util.function.Function;
 public final class BindingIndex<T> {
     private final Map<T, Binding> bindings = new IdentityHashMap<>();
     private final Map<String, List<T>> byKey = new HashMap<>();
+    private final Map<String, List<T>> byInput = new HashMap<>();
     private final Set<T> conflicting = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<String> conflictKeys = new HashSet<>();
 
@@ -25,12 +27,21 @@ public final class BindingIndex<T> {
             Binding binding = reader.apply(action);
             bindings.put(action, binding);
             for (String key : binding.keys()) byKey.computeIfAbsent(key, ignored -> new ArrayList<>()).add(action);
+            Set<String> inputs = new LinkedHashSet<>(binding.keys());
+            if (!inputs.isEmpty()) {
+                if (binding.ctrl()) addModifier(inputs, "control");
+                if (binding.shift()) addModifier(inputs, "shift");
+                if (binding.alt()) addModifier(inputs, "alt");
+                if (binding.command()) addModifier(inputs, "win");
+            }
+            for (String input : inputs) byInput.computeIfAbsent(input, ignored -> new ArrayList<>()).add(action);
             if (!binding.keys().isEmpty()) {
                 groups.computeIfAbsent(Chord.of(binding),
                     ignored -> new ArrayList<>()).add(action);
             }
         }
         byKey.replaceAll((key, values) -> List.copyOf(values));
+        byInput.replaceAll((key, values) -> List.copyOf(values));
         for (Map.Entry<Chord, List<T>> entry : groups.entrySet()) {
             List<T> group = entry.getValue();
             for (int i = 0; i < group.size(); i++) {
@@ -48,9 +59,16 @@ public final class BindingIndex<T> {
 
     public Binding binding(T action) { return bindings.get(action); }
     public List<T> forKey(String key) { return byKey.getOrDefault(key, List.of()); }
+    /** Physical inputs, including both sides of a generic modifier used by a chord. */
+    public List<T> forInput(String key) { return byInput.getOrDefault(key, List.of()); }
     public boolean conflicts(T action) { return conflicting.contains(action); }
     public boolean keyConflicts(String key) { return conflictKeys.contains(key); }
     public static boolean sameInputs(Binding first, Binding second) { return Chord.of(first).equals(Chord.of(second)); }
+
+    private static void addModifier(Set<String> inputs, String name) {
+        inputs.add("key.keyboard.left." + name);
+        inputs.add("key.keyboard.right." + name);
+    }
 
     private record Chord(List<String> keys, boolean ctrl, boolean shift, boolean alt, boolean command) {
         private static Chord of(Binding binding) {

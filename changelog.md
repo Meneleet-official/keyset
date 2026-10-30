@@ -1,3 +1,41 @@
+# 1.2.0 - color themes
+
+- Cached the mouse artwork instead of rebuilding thousands of drawing commands every frame; cached textures are released when the screen closes.
+- Enlarged color-picker device previews with Keyboard/Mouse tabs and a dedicated preview page for smaller windows. Full keyboards pan horizontally instead of shrinking into unreadable thumbnails.
+- Aligned vanilla Cyrillic key legends to a shared scale and baseline, fixing the undersized Й while keeping its breve inside the keycap.
+- Added a live keyboard and mouse preview in personalization and full-size, TKL, 75%, and 60% keyboard diagrams.
+- Simplified action filters to Conflicts and Unbound, with removable filter chips; removed favorites and the Modified filter.
+- Added a searchable single-column mod/category list, separate counts, and clearer selection.
+- Redesigned the mouse with curved top and side profiles, integrated click plates, a recessed wheel, and shape-aware input regions. Keyboard legends scale to fit their beveled key faces, including Cyrillic labels.
+- Added named custom themes with portable JSON import/export, clipboard transfer, and safe shared storage.
+- Corrected the front/rear M5/M4 mouse positions and the normal numpad period input.
+- Moved all keyboard and mouse color settings into Colors, alongside the interface palette.
+- Every preset now changes the complete palette, including bound, conflicting, and free keys.
+- Balanced all presets so bound and free keys remain clearly distinguishable without an excessive brightness difference; existing base palettes update automatically.
+- Clicking a color sample opens a picker with saturation/brightness, hue and RGB sliders, HEX input, and original/new previews. Confirm applies the color; Cancel preserves the original.
+- Added live color samples, compact HEX fields, and scrolling for smaller windows and larger GUI scales.
+- Preset selection now reflects custom key color edits, and the editor displays version 1.2.0.
+- Hidden assignments and chord modifiers remain accounted for when identifying free keys. Color settings persist across sessions and instances.
+
+# 1.2.0 - цветовые темы
+
+- Мышь использует кэш изображений вместо повторной отрисовки тысяч элементов каждый кадр; ресурсы освобождаются при закрытии экрана.
+- Увеличен предпросмотр устройств в выборе цвета: добавлены вкладки клавиатуры и мыши, а в небольших окнах - отдельная страница предпросмотра. Полноразмерную клавиатуру можно прокручивать по горизонтали.
+- Кириллические подписи стандартного шрифта выровнены по размеру и базовой линии: Й больше не уменьшается отдельно от остальных букв.
+- Добавлены живой предпросмотр клавиатуры и мыши в персонализации и форматы клавиатуры 100%, TKL, 75% и 60%.
+- Фильтры действий упрощены до «Конфликты» и «Без назначения» со снимаемыми метками; избранное и фильтр «Изменённые» удалены.
+- Добавлен поиск модов и категорий в одноколоночном списке с отдельными счётчиками и заметным выделением.
+- Мышь получила плавные контуры сверху и сбоку, встроенные основные кнопки, утопленное колесо и области нажатия по форме кнопок. Подписи клавиатуры, включая кириллицу, уменьшаются под размер внутренних граней клавиш.
+- Добавлены именованные пользовательские темы с переносом через JSON и буфер обмена и общим хранилищем.
+- Исправлены передняя/задняя позиции M5/M4 и назначение обычной точки на нумпаде.
+- Все настройки цветов клавиатуры и мыши перенесены в «Цвета» рядом с палитрой интерфейса.
+- Готовые темы меняют полную палитру, включая назначенные, конфликтующие и свободные клавиши.
+- Во всех готовых темах назначенные и свободные клавиши заметно различаются без чрезмерного перепада яркости; старые готовые палитры обновляются автоматически.
+- Нажатие на образец цвета открывает панель с насыщенностью и яркостью, ползунками оттенка и RGB, вводом HEX и сравнением старого и нового цветов. Подтверждение применяет цвет, отмена сохраняет исходный.
+- Добавлены образцы цветов, компактные поля HEX и прокрутка для небольших окон и крупного масштаба GUI.
+- Выбранная тема учитывает ручные изменения цветов клавиш; в редакторе отображается версия 1.2.0.
+- Скрытые назначения и модификаторы сочетаний учитываются при определении свободных клавиш. Цвета сохраняются между запусками и сборками.
+
 # 1.1.1 - reliability fixes
 
 - Fixed rollback of key changes when a hotkey provider or save operation throws a runtime error.

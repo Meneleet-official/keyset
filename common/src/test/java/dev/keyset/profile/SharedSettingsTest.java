@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
@@ -229,7 +230,7 @@ class SharedSettingsTest {
     }
 
     @Test
-    void preferencesMergeIndependentFavoritesRoutesAndWidth() throws IOException {
+    void preferencesMergeIndependentRoutesAndWidth() throws IOException {
         Path file = directory.resolve("preferences.properties");
         ClientPreferences first = new ClientPreferences(file);
         first.load();
@@ -238,10 +239,8 @@ class SharedSettingsTest {
         String profileA = "00000000-0000-0000-0000-000000000001";
         String profileB = "00000000-0000-0000-0000-000000000002";
 
-        first.toggleFavorite("action.one");
         first.toggleRoute("server:one", profileA);
         first.setSidebarRatio(0.61);
-        second.toggleFavorite("action.two");
         second.toggleRoute("server:two", profileB);
 
         first.save();
@@ -249,8 +248,6 @@ class SharedSettingsTest {
 
         ClientPreferences reloaded = new ClientPreferences(file);
         reloaded.load();
-        assertTrue(reloaded.isFavorite("action.one"));
-        assertTrue(reloaded.isFavorite("action.two"));
         assertEquals(profileA, reloaded.profileFor("server:one"));
         assertEquals(profileB, reloaded.profileFor("server:two"));
         assertEquals(0.61, reloaded.sidebarRatio(), 0.000001);
@@ -261,7 +258,8 @@ class SharedSettingsTest {
         Path file = directory.resolve("preferences.properties");
         ClientPreferences preferences = new ClientPreferences(file);
         preferences.load();
-        UiAppearance appearance = new UiAppearance(73, 29, true, 0x123456, 0xABCDEF, 68);
+        UiAppearance appearance = new UiAppearance(73, 29, true, 0x123456, 0xABCDEF, 68,
+                0x102030, 0xA0B0C0, 0xE0D0C0);
         preferences.setAppearance(appearance);
         preferences.setCategoryHidden("core:movement", true);
         preferences.setCategoryHidden("category.with spaces/and punctuation", true);
@@ -290,10 +288,13 @@ class SharedSettingsTest {
         ClientPreferences second = new ClientPreferences(file);
         second.load();
 
-        first.setAppearance(new UiAppearance(80, 25, true, 0x123456, 0, 35));
+        UiAppearance defaults = UiAppearance.defaults();
+        first.setAppearance(new UiAppearance(80, 25, true, 0x123456, 0, 35,
+                0x304050, defaults.conflictKeyColor(), defaults.unboundKeyColor()));
         first.setCategoryHidden("category:one", true);
         first.setModHidden("mod:one", true);
-        second.setAppearance(new UiAppearance(100, 22, false, 0x94E4D3, 0x224466, 60));
+        second.setAppearance(new UiAppearance(100, 22, false, 0x94E4D3, 0x224466, 60,
+                defaults.boundKeyColor(), 0xD0A060, defaults.unboundKeyColor()));
         second.setCategoryHidden("category:two", true);
         second.setModHidden("mod:two", true);
 
@@ -302,7 +303,8 @@ class SharedSettingsTest {
 
         ClientPreferences reloaded = new ClientPreferences(file);
         reloaded.load();
-        assertEquals(new UiAppearance(80, 22, true, 0x123456, 0x224466, 60), reloaded.appearance());
+        assertEquals(new UiAppearance(80, 22, true, 0x123456, 0x224466, 60,
+                0x304050, 0xD0A060, defaults.unboundKeyColor()), reloaded.appearance());
         assertEquals(Set.of("category:one", "category:two"), reloaded.hiddenCategories());
         assertEquals(Set.of("mod:one", "mod:two"), reloaded.hiddenMods());
     }
@@ -321,24 +323,197 @@ class SharedSettingsTest {
     }
 
     @Test
+    void preferencesMergeBoundConflictAndUnboundColorsIndependently() throws IOException {
+        Path file = directory.resolve("preferences.properties");
+        ClientPreferences boundEditor = new ClientPreferences(file);
+        ClientPreferences conflictEditor = new ClientPreferences(file);
+        ClientPreferences unboundEditor = new ClientPreferences(file);
+        boundEditor.load();
+        conflictEditor.load();
+        unboundEditor.load();
+
+        UiAppearance defaults = UiAppearance.defaults();
+        boundEditor.setAppearance(withKeyAppearance(defaults, 0x123456,
+                defaults.conflictKeyColor(), defaults.unboundKeyColor()));
+        conflictEditor.setAppearance(withKeyAppearance(defaults, defaults.boundKeyColor(),
+                0x234567, defaults.unboundKeyColor()));
+        unboundEditor.setAppearance(withKeyAppearance(defaults, defaults.boundKeyColor(),
+                defaults.conflictKeyColor(), 0x345678));
+
+        boundEditor.save();
+        conflictEditor.save();
+        unboundEditor.save();
+
+        ClientPreferences reloaded = new ClientPreferences(file);
+        reloaded.load();
+        assertEquals(withKeyAppearance(defaults, 0x123456, 0x234567, 0x345678), reloaded.appearance());
+    }
+
+    @Test
+    void preferencesConflictWhenTheSameKeyAppearanceColorChangesDifferently() throws IOException {
+        for (String field : Set.of("bound-color", "conflict-color", "unbound-color")) {
+            Path file = directory.resolve("preferences-" + field + ".properties");
+            ClientPreferences first = new ClientPreferences(file);
+            ClientPreferences second = new ClientPreferences(file);
+            first.load();
+            second.load();
+            UiAppearance defaults = UiAppearance.defaults();
+            first.setAppearance(withChangedKeyColor(defaults, field, 0x112233));
+            second.setAppearance(withChangedKeyColor(defaults, field, 0x445566));
+            first.save();
+            assertThrows(SharedSettingsConflictException.class, second::save, field);
+        }
+    }
+
+    @Test
+    void oldPreferencesFileUsesDefaultsForNewKeyAppearanceFields() throws IOException {
+        Path file = directory.resolve("legacy-preferences.properties");
+        Files.writeString(file, "ui.keyboardScale=80\n"
+                + "ui.rowHeight=29\n"
+                + "ui.inputOnRight=true\n"
+                + "ui.accentColor=1193046\n"
+                + "ui.panelColor=6636321\n"
+                + "ui.panelOpacity=68\n");
+
+        ClientPreferences preferences = new ClientPreferences(file);
+        preferences.load();
+
+        assertEquals(new UiAppearance(80, 29, true, 0x123456, 0x654321, 68,
+                0x819D96, 0xD77979, 0x546760), preferences.appearance());
+    }
+
+    @Test
+    void exactPreviousPresetPalettesRefreshAndPersistAcrossReload() throws IOException {
+        for (AppearancePreset preset : AppearancePreset.values()) {
+            if (preset == AppearancePreset.BLACK) continue;
+            Path file = directory.resolve("legacy-preset-" + preset.name().toLowerCase(java.util.Locale.ROOT)
+                    + ".properties");
+            UiAppearance previous = previousPalette(preset);
+            Files.writeString(file, appearanceProperties(previous));
+
+            ClientPreferences preferences = new ClientPreferences(file);
+            preferences.load();
+            UiAppearance expected = preset.applyTo(previous);
+            assertEquals(expected, preferences.appearance(), preset.name());
+
+            preferences.save();
+            String saved = Files.readString(file);
+            assertTrue(saved.contains("ui.accentColor=" + expected.accentColor()), preset.name());
+            assertTrue(saved.contains("ui.boundKeyColor=" + expected.boundKeyColor()), preset.name());
+            assertTrue(saved.contains("ui.unboundKeyColor=" + expected.unboundKeyColor()), preset.name());
+
+            ClientPreferences reloaded = new ClientPreferences(file);
+            reloaded.load();
+            assertEquals(expected, reloaded.appearance(), preset.name());
+        }
+    }
+
+    @Test
+    void manualAccentBoundAndFreeEditsPreventLegacyPresetRefresh() throws IOException {
+        for (AppearancePreset preset : AppearancePreset.values()) {
+            if (preset == AppearancePreset.BLACK) continue;
+            UiAppearance previous = previousPalette(preset);
+            for (String field : new String[] {"accent", "bound", "free", "mouse-body"}) {
+                Path file = directory.resolve("custom-legacy-" + preset.name().toLowerCase(java.util.Locale.ROOT)
+                        + "-" + field + ".properties");
+                UiAppearance custom = withManualLegacyEdit(previous, field);
+                Files.writeString(file, appearanceProperties(custom));
+
+                ClientPreferences preferences = new ClientPreferences(file);
+                preferences.load();
+                assertEquals(custom, preferences.appearance(), preset.name() + " " + field);
+                preferences.save();
+
+                ClientPreferences reloaded = new ClientPreferences(file);
+                reloaded.load();
+                assertEquals(custom, reloaded.appearance(), preset.name() + " " + field);
+            }
+        }
+    }
+
+    @Test
+    void legacyFreeKeyColorMigratesOnlyWhenItWasCustomized() throws IOException {
+        Path defaultsFile = directory.resolve("legacy-default-color.properties");
+        Files.writeString(defaultsFile, "ui.freeKeyColor=" + 0x78BDF2 + "\n"
+                + "ui.highlightFreeKeys=false\n"
+                + "ui.multiBindColor=123456\n");
+        ClientPreferences defaults = new ClientPreferences(defaultsFile);
+        defaults.load();
+        assertEquals(UiAppearance.defaults(), defaults.appearance());
+
+        Path customFile = directory.resolve("legacy-custom-color.properties");
+        Files.writeString(customFile, "ui.freeKeyColor=" + 0x233445 + "\n"
+                + "ui.highlightFreeKeys=false\n"
+                + "ui.multiBindColor=123456\n");
+        ClientPreferences custom = new ClientPreferences(customFile);
+        custom.load();
+        assertEquals(withKeyAppearance(UiAppearance.defaults(), 0x819D96, 0xD77979, 0x233445),
+                custom.appearance());
+
+        custom.save();
+        String saved = Files.readString(customFile);
+        assertTrue(saved.contains("ui.boundKeyColor=" + Integer.toString(0x819D96)));
+        assertTrue(saved.contains("ui.conflictKeyColor=" + Integer.toString(0xD77979)));
+        assertTrue(saved.contains("ui.unboundKeyColor=" + Integer.toString(0x233445)));
+        assertFalse(saved.contains("ui.freeKeyColor="));
+        assertFalse(saved.contains("ui.highlightFreeKeys="));
+        assertFalse(saved.contains("ui.multiBindColor="));
+    }
+
+    @Test
     void malformedNewPreferenceFieldsFallBackToDefaultsWithoutLosingExistingSettings() throws IOException {
         Path file = directory.resolve("preferences.properties");
-        Files.writeString(file, "favorite.YWN0aW9uLm9uZQ=true\n"
-                + "ui.keyboardScale=not-a-number\n"
+        Files.writeString(file, "ui.keyboardScale=not-a-number\n"
                 + "ui.rowHeight=1000\n"
                 + "ui.inputOnRight=maybe\n"
                 + "ui.accentColor=-1\n"
                 + "ui.panelColor=oops\n"
                 + "ui.panelOpacity=also-not-a-number\n"
+                + "ui.boundKeyColor=not-a-number\n"
+                + "ui.conflictKeyColor=1193046\n"
+                + "ui.unboundKeyColor=not-a-number\n"
+                + "ui.highlightFreeKeys=false\n"
+                + "ui.freeKeyColor=2241348\n"
+                + "ui.multiBindColor=123456\n"
                 + "ui.hiddenCategory.not-base64!=true\n"
                 + "ui.hiddenMod.bW9kOnRydWU=maybe\n");
 
         ClientPreferences preferences = new ClientPreferences(file);
         preferences.load();
-        assertTrue(preferences.isFavorite("action.one"));
-        assertEquals(new UiAppearance(100, 32, false, 0xFFFFFF, 0x000000, 35), preferences.appearance());
+        assertEquals(new UiAppearance(100, 32, false, 0xFFFFFF, 0x000000, 35,
+                0x819D96, 0x123456, 0x546760), preferences.appearance());
         assertTrue(preferences.hiddenCategories().isEmpty());
         assertTrue(preferences.hiddenMods().isEmpty());
+    }
+
+    @Test
+    void legacyFavoritePropertiesAreIgnoredAndDroppedOnSave() throws IOException {
+        Path file = directory.resolve("legacy-favorites.properties");
+        String hiddenCategory = "legacy:category";
+        String encodedHiddenCategory = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(hiddenCategory.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Files.writeString(file, "favorite.YWN0aW9uLm9uZQ=true\n"
+                + "favorite.bGVnYWN5LmFjdGlvbg=true\n"
+                + "ui.sidebarRatio=0.61\n"
+                + "ui.keyboardScale=73\n"
+                + "ui.hiddenCategory." + encodedHiddenCategory + "=true\n");
+
+        ClientPreferences preferences = new ClientPreferences(file);
+        preferences.load();
+        assertEquals(73, preferences.appearance().keyboardScale());
+        assertEquals(0.61, preferences.sidebarRatio(), 0.000001);
+        assertTrue(preferences.isCategoryHidden(hiddenCategory));
+        String routeProfile = "00000000-0000-0000-0000-000000000001";
+        preferences.toggleRoute("server:legacy", routeProfile);
+        preferences.save();
+
+        ClientPreferences reloaded = new ClientPreferences(file);
+        reloaded.load();
+        assertFalse(Files.readString(file).contains("favorite."));
+        assertEquals(routeProfile, reloaded.profileFor("server:legacy"));
+        assertTrue(reloaded.isCategoryHidden(hiddenCategory));
+        assertEquals(73, reloaded.appearance().keyboardScale());
+        assertEquals(0.61, reloaded.sidebarRatio(), 0.000001);
     }
 
     @Test
@@ -387,15 +562,18 @@ class SharedSettingsTest {
         preferenceWriter.load();
         ClientPreferences preferenceReader = new ClientPreferences(preferenceFile);
         preferenceReader.load();
-        preferenceWriter.toggleFavorite("external.action");
+        String externalProfile = "00000000-0000-0000-0000-000000000003";
+        String localProfile = "00000000-0000-0000-0000-000000000004";
+        String anotherProfile = "00000000-0000-0000-0000-000000000005";
+        preferenceWriter.toggleRoute("server:external", externalProfile);
         preferenceWriter.save();
         assertTrue(preferenceReader.reloadIfChanged());
-        assertTrue(preferenceReader.isFavorite("external.action"));
-        preferenceReader.toggleFavorite("local.unsaved");
-        preferenceWriter.toggleFavorite("another.external.action");
+        assertEquals(externalProfile, preferenceReader.profileFor("server:external"));
+        preferenceReader.toggleRoute("server:local", localProfile);
+        preferenceWriter.toggleRoute("server:another", anotherProfile);
         preferenceWriter.save();
         assertFalse(preferenceReader.reloadIfChanged());
-        assertTrue(preferenceReader.isFavorite("local.unsaved"));
+        assertEquals(localProfile, preferenceReader.profileFor("server:local"));
     }
 
     @Test
@@ -443,33 +621,39 @@ class SharedSettingsTest {
         ClientPreferences retryReader = new ClientPreferences(file);
         retryReader.load();
         String profileId = "00000000-0000-0000-0000-000000000001";
+        String localProfileId = "00000000-0000-0000-0000-000000000002";
+        UiAppearance externalAppearance = new UiAppearance(80, 27, true, 0x123456, 0x654321, 60,
+                0x112233, 0x445566, 0x778899, KeyboardFormFactor.TKL);
 
-        writer.toggleFavorite("external.favorite");
         writer.toggleRoute("server:external", profileId);
         writer.setSidebarRatio(0.61);
+        writer.setAppearance(externalAppearance);
         writer.save();
 
         ClientPreferences.ReloadCheckpoint rollback = reader.reloadCheckpoint();
         assertTrue(reader.reloadIfChanged());
-        assertTrue(reader.isFavorite("external.favorite"));
+        assertEquals(profileId, reader.profileFor("server:external"));
+        assertEquals(externalAppearance, reader.appearance());
         reader.restoreReloadCheckpoint(rollback);
-        assertFalse(reader.isFavorite("external.favorite"));
+        assertNull(reader.profileFor("server:external"));
+        assertEquals(UiAppearance.defaults(), reader.appearance());
 
-        reader.toggleFavorite("local.favorite");
+        reader.toggleRoute("server:local", localProfileId);
         reader.save();
         ClientPreferences reloaded = new ClientPreferences(file);
         reloaded.load();
-        assertTrue(reloaded.isFavorite("external.favorite"));
-        assertTrue(reloaded.isFavorite("local.favorite"));
         assertEquals(profileId, reloaded.profileFor("server:external"));
+        assertEquals(localProfileId, reloaded.profileFor("server:local"));
         assertEquals(0.61, reloaded.sidebarRatio(), 0.000001);
+        assertEquals(externalAppearance, reloaded.appearance());
 
         ClientPreferences.ReloadCheckpoint retryRollback = retryReader.reloadCheckpoint();
         assertTrue(retryReader.reloadIfChanged());
         retryReader.restoreReloadCheckpoint(retryRollback);
         assertTrue(retryReader.reloadIfChanged());
-        assertTrue(retryReader.isFavorite("external.favorite"));
-        assertTrue(retryReader.isFavorite("local.favorite"));
+        assertEquals(profileId, retryReader.profileFor("server:external"));
+        assertEquals(localProfileId, retryReader.profileFor("server:local"));
+        assertEquals(externalAppearance, retryReader.appearance());
     }
 
     @Test
@@ -501,29 +685,34 @@ class SharedSettingsTest {
     }
 
     @Test
-    void rebasedPreferencesUndoPreservesRemoteFavorite() throws IOException {
+    void rebasedPreferencesUndoPreservesRemoteRouteAndAppearance() throws IOException {
         Path file = directory.resolve("preferences.properties");
         ClientPreferences local = new ClientPreferences(file);
         local.load();
         ClientPreferences remote = new ClientPreferences(file);
         remote.load();
+        String localProfile = "00000000-0000-0000-0000-000000000008";
+        String remoteProfile = "00000000-0000-0000-0000-000000000009";
+        UiAppearance remoteAppearance = new UiAppearance(75, 24, true, 0x345678, 0x101820, 55,
+                0x123456, 0x654321, 0xABCDEF, KeyboardFormFactor.COMPACT_75);
 
         ClientPreferences.State before = local.checkpoint();
-        local.toggleFavorite("local.favorite");
+        local.toggleRoute("server:local", localProfile);
         ClientPreferences.State attempted = local.checkpoint();
-        remote.toggleFavorite("remote.favorite");
+        remote.toggleRoute("server:remote", remoteProfile);
+        remote.setAppearance(remoteAppearance);
         remote.save();
         local.save();
 
         ClientPreferences.State rebased = local.rebaseCheckpoint(before, attempted);
-        assertTrue(rebased.favorites().contains("remote.favorite"));
         local.restore(rebased);
         local.save();
 
         ClientPreferences reloaded = new ClientPreferences(file);
         reloaded.load();
-        assertFalse(reloaded.isFavorite("local.favorite"));
-        assertTrue(reloaded.isFavorite("remote.favorite"));
+        assertNull(reloaded.profileFor("server:local"));
+        assertEquals(remoteProfile, reloaded.profileFor("server:remote"));
+        assertEquals(remoteAppearance, reloaded.appearance());
     }
 
     @Test
@@ -533,12 +722,76 @@ class SharedSettingsTest {
         assertEquals(0.35, preferences.sidebarRatio(), 0.000001);
         preferences.setSidebarRatio(0.9);
         assertEquals(0.65, preferences.sidebarRatio(), 0.000001);
-        assertEquals(0.52, new ClientPreferences.State(Set.of(), Map.of()).sidebarRatio(), 0.000001);
-        assertEquals(UiAppearance.defaults(), new ClientPreferences.State(Set.of(), Map.of(), 0.5).appearance());
+        assertEquals(0.52, new ClientPreferences.State(Map.of()).sidebarRatio(), 0.000001);
+        assertEquals(UiAppearance.defaults(), new ClientPreferences.State(Map.of(), 0.5).appearance());
         assertEquals(UiAppearance.defaults(), new ClientPreferences(directory.resolve("fresh.properties")).appearance());
-        assertEquals(new UiAppearance(100, 25, false, 0x94E4D3, 0, 35), UiAppearance.defaults());
-        assertEquals(new UiAppearance(60, 32, true, 0xFFFFFF, 0, 15),
+        assertEquals(new UiAppearance(100, 25, false, 0x94E4D3, 0, 35,
+                0x819D96, 0xD77979, 0x546760), UiAppearance.defaults());
+        assertEquals(new UiAppearance(60, 32, true, 0xFFFFFF, 0, 15,
+                        0x819D96, 0xD77979, 0x546760),
                 new UiAppearance(20, 100, true, -1, 0x1000000, 2));
+        assertEquals(new UiAppearance(60, 32, true, 0xFFFFFF, 0, 15, 0xFFFFFF, 0xFFFFFF, 0),
+                new UiAppearance(20, 100, true, -1, 0x1000000, 2, -1, -1, 0x1000000));
+    }
+
+    private static UiAppearance withKeyAppearance(UiAppearance base, int boundKeyColor,
+                                                  int conflictKeyColor, int unboundKeyColor) {
+        return new UiAppearance(base.keyboardScale(), base.rowHeight(), base.inputOnRight(), base.accentColor(),
+                base.panelColor(), base.panelOpacity(), boundKeyColor, conflictKeyColor, unboundKeyColor);
+    }
+
+    private static UiAppearance withChangedKeyColor(UiAppearance base, String field, int color) {
+        return switch (field) {
+            case "bound-color" -> withKeyAppearance(base, color, base.conflictKeyColor(), base.unboundKeyColor());
+            case "conflict-color" -> withKeyAppearance(base, base.boundKeyColor(), color, base.unboundKeyColor());
+            case "unbound-color" -> withKeyAppearance(base, base.boundKeyColor(), base.conflictKeyColor(), color);
+            default -> throw new IllegalArgumentException("Unknown key color field: " + field);
+        };
+    }
+
+    private static UiAppearance previousPalette(AppearancePreset preset) {
+        return switch (preset) {
+            case DEFAULT -> new UiAppearance(80, 29, true, 0x94E4D3, 0x000000, 68,
+                    0x8DAFA6, 0xD77979, 0x48515A);
+            case OCEAN -> new UiAppearance(80, 29, true, 0x78BDF2, 0x101A2C, 68,
+                    0x78BDF2, 0xD77979, 0x4A627B);
+            case EMBER -> new UiAppearance(80, 29, true, 0xF2A66F, 0x24150E, 68,
+                    0xF2A66F, 0xD77979, 0x6B4B38);
+            case PAPER -> new UiAppearance(80, 29, true, 0x25594C, 0xEEECE4, 68,
+                    0x25594C, 0xC74444, 0x747C78);
+            case BLACK -> throw new IllegalArgumentException("Black has no legacy palette");
+        };
+    }
+
+    private static UiAppearance withManualLegacyEdit(UiAppearance base, String field) {
+        return switch (field) {
+            case "accent" -> withColors(base, base.accentColor() ^ 1,
+                    base.boundKeyColor(), base.unboundKeyColor());
+            case "bound" -> withColors(base, base.accentColor(),
+                    base.boundKeyColor() ^ 1, base.unboundKeyColor());
+            case "free" -> withColors(base, base.accentColor(),
+                    base.boundKeyColor(), base.unboundKeyColor() ^ 1);
+            case "mouse-body" -> base.withMouseBodyColor(base.mouseBodyColor() ^ 1);
+            default -> throw new IllegalArgumentException("Unknown legacy color field: " + field);
+        };
+    }
+
+    private static UiAppearance withColors(UiAppearance base, int accent, int bound, int unbound) {
+        return new UiAppearance(base.keyboardScale(), base.rowHeight(), base.inputOnRight(),
+                accent, base.panelColor(), base.panelOpacity(), bound, base.conflictKeyColor(), unbound);
+    }
+
+    private static String appearanceProperties(UiAppearance appearance) {
+        return "ui.keyboardScale=" + appearance.keyboardScale() + "\n"
+                + "ui.rowHeight=" + appearance.rowHeight() + "\n"
+                + "ui.inputOnRight=" + appearance.inputOnRight() + "\n"
+                + "ui.accentColor=" + appearance.accentColor() + "\n"
+                + "ui.panelColor=" + appearance.panelColor() + "\n"
+                + "ui.panelOpacity=" + appearance.panelOpacity() + "\n"
+                + "ui.boundKeyColor=" + appearance.boundKeyColor() + "\n"
+                + "ui.conflictKeyColor=" + appearance.conflictKeyColor() + "\n"
+                + "ui.unboundKeyColor=" + appearance.unboundKeyColor() + "\n"
+                + "ui.mouseBodyColor=" + appearance.mouseBodyColor() + "\n";
     }
 
     @Test

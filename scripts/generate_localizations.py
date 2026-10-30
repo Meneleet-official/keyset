@@ -169,6 +169,9 @@ def main():
     args = parser.parse_args()
     english = read(LANG / 'en_us.json')
     russian = read(LANG / 'ru_ru.json')
+    manifest_path = ROOT / 'common/src/client/resources/assets/keyset/localization_manifest.json'
+    previous_manifest = read(manifest_path) if manifest_path.exists() else {}
+    previous_locales = {path.stem: read(path) for path in LANG.glob('*.json')}
     assert english.keys() == russian.keys(), 'English/Russian key mismatch'
     index = read(args.assets / 'indexes' / (args.index + '.json'))['objects']
     catalogs, names = {}, {}
@@ -214,7 +217,8 @@ def main():
                 print('unavailable',language,str(error),flush=True)
 
     release = re.search(r"version\s*=\s*'([^']+)'", (ROOT / 'build.gradle').read_text(encoding='utf-8')).group(1)
-    manifest = {'minecraft':'26.3','release':release,'sourceHash':source_hash,'locales':{},'unavailableProviders':failures}
+    manifest = {'minecraft':'26.3','release':release,'sourceHash':source_hash,'locales':{},
+                'unavailableProviders':failures,'fallbackKeysByLocale':{}}
     for locale in sorted(catalogs):
         if locale == 'ru_ru':
             values, mode = russian, 'reviewed'
@@ -225,8 +229,18 @@ def main():
             if mode == 'machine' and locale in FAMILIES:
                 mode = 'machine-regional'
             if locale in UNSUPPORTED or language in failures:
-                mode = 'vanilla-with-english-fallback'
+                mode = previous_manifest.get('locales', {}).get(locale, {}).get(
+                    'quality', 'vanilla-with-english-fallback')
             values = transform_variant(locale, values)
+            if locale in UNSUPPORTED or language in failures:
+                previous = previous_locales.get(locale, {})
+                preserved = {key: value for key, value in previous.items() if key in english
+                             and value.strip() and placeholders(value) == placeholders(english[key])}
+                values.update(preserved)
+                fallback_keys = (set(english) - set(preserved)) | set(
+                    previous_manifest.get('fallbackKeysByLocale', {}).get(locale, []))
+                if fallback_keys:
+                    manifest['fallbackKeysByLocale'][locale] = sorted(fallback_keys & set(english))
             native = catalogs[locale]
             for mod_key, native_key in VANILLA_KEYS.items():
                 if mod_key in english and native_key in native:

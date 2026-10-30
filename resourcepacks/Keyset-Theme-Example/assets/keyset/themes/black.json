@@ -1,0 +1,15 @@
+{
+  "format": "keyset-theme",
+  "schemaVersion": 1,
+  "theme": {
+    "id": "31d33c5a-2b4c-45b4-bc6c-337790e2b663",
+    "name": "Pack Black",
+    "accentColor": 12661812,
+    "panelColor": 0,
+    "panelOpacity": 35,
+    "boundKeyColor": 3158064,
+    "conflictKeyColor": 10044227,
+    "unboundKeyColor": 2236962,
+    "mouseBodyColor": 3158064
+  }
+}

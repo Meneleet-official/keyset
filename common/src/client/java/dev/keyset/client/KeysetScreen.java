@@ -4,17 +4,19 @@ import com.mojang.blaze3d.platform.InputConstants;
 import dev.keyset.KeysetClient;
 import dev.keyset.editor.BindingIndex;
 import dev.keyset.editor.ActionSearch;
+import dev.keyset.editor.SidebarSearch;
 import dev.keyset.editor.KeyboardLayouts;
+import dev.keyset.editor.KeyboardDiagramLayout;
 import dev.keyset.editor.ChordCapture;
 import dev.keyset.editor.EditorViewport;
 import dev.keyset.editor.EditorPanelLayout;
 import dev.keyset.editor.EditorFooterLayout;
-import dev.keyset.editor.NumpadLayout;
 import dev.keyset.editor.MouseDiagramLayout;
 import dev.keyset.editor.MouseDiagramLayout.Control;
 import dev.keyset.editor.MouseDiagramLayout.Rect;
 import dev.keyset.editor.MouseDiagramPainter.State;
 import dev.keyset.profile.UiAppearance;
+import dev.keyset.editor.KeycapPainter;
 import dev.keyset.profile.Binding;
 import dev.keyset.profile.Profile;
 import java.io.IOException;
@@ -63,27 +65,32 @@ public final class KeysetScreen extends Screen {
     };
 
     private final Screen parent;
+    private final MouseTextureCache mouseArtwork = new MouseTextureCache();
     private EditBox searchBox;
     private Button searchClearButton;
     private Button allCategoryButton, categoryFilterButton, modFilterButton;
-    private Button conflictsButton, favoritesButton, keyboardTabButton, mouseTabButton;
+    private Button conflictsButton, unboundButton, keyboardTabButton, mouseTabButton;
     private Button profileCycleButton, newProfileButton, renameProfileButton, deleteProfileButton;
     private Button layoutButton, unbindButton, resetButton, resetAllButton, undoButton, doneButton;
     private Button ctrlButton, shiftButton, altButton, deselectButton;
     private Button compactStatusButton;
     private Button appearanceButton, visibilityButton;
+    private EditBox sidebarSearchBox;
     private final List<Button> filterChipButtons = new ArrayList<>();
     private final List<Button> categoryButtons = new ArrayList<>();
+    private final Map<Button, Integer> sidebarButtonCounts = new IdentityHashMap<>();
     private final List<Button> rowNameButtons = new ArrayList<>();
     private final List<Button> rowBindingButtons = new ArrayList<>();
     private final List<Button> rowUnbindButtons = new ArrayList<>();
     private final List<Button> rowConflictButtons = new ArrayList<>();
-    private final List<Button> rowFavoriteButtons = new ArrayList<>();
     private final List<Button> rowSectionButtons = new ArrayList<>();
     private final List<Button> rowSectionHideButtons = new ArrayList<>();
+    private final List<Button> rowSectionUnbindButtons = new ArrayList<>();
+    private final List<Button> decorativeInputButtons = new ArrayList<>();
     private final Map<Button, VirtualKey> keyboardButtonKeys = new IdentityHashMap<>();
     private List<KeyMapping> filteredMappings = List.of();
     private List<KeyMapping> allMappings = List.of();
+    private final Set<KeyMapping.Category> hiddenSections = new HashSet<>();
     private List<ActionListEntry> displayEntries = List.of();
     private BindingIndex<KeyMapping> bindingIndex;
     private BindingIndex<KeyMapping> diagramIndex;
@@ -92,16 +99,19 @@ public final class KeysetScreen extends Screen {
     private FilterState appliedFilter;
     private KeyboardLayouts.Layout keyboardLayout;
     private List<KeyMapping.Category> categories = List.of();
+    private List<KeyMapping.Category> searchedCategories = List.of();
     private List<ModFilter> mods = List.of();
+    private List<ModFilter> searchedMods = List.of();
     private KeyMapping.Category category;
     private String modFilter;
     private KeyMapping selectedMapping;
     private int bindingScroll, categoryScroll, modScroll;
     private int collapseRevision;
     private int layoutIndex = -1;
-    private boolean modFilterMode, conflictsOnly, favoritesOnly, capturing, settingVirtualKeyFilter, mouseMode;
+    private boolean modFilterMode, conflictsOnly, unboundOnly, capturing, settingVirtualKeyFilter, mouseMode;
     private boolean virtualCtrl, virtualShift, virtualAlt;
     private String searchQuery = "";
+    private String sidebarSearchQuery = "";
     private String virtualKeyFilter;
     private InputConstants.Key pendingModifier;
     private final ChordCapture nativeCapture = new ChordCapture();
@@ -109,13 +119,14 @@ public final class KeysetScreen extends Screen {
     private boolean statusIsError;
     private int sidebarX, sidebarWidth, mainX, mainWidth;
     private int searchY, listTitleY, listTop, listBottom;
-    private int keyboardPanelY, keyStep, keyHeight, inputCardBottom, categoryCardY, summaryY;
-    private int categoryListTop, categoryListBottom, keyboardUnit;
+    private int keyboardPanelY, inputCardBottom, categoryCardY, summaryY;
+    private int categoryListTop, categoryListBottom;
     private EditorViewport viewport;
     private EditorPanelLayout panels;
     private UiAppearance appearance;
     private double layoutSidebarRatio;
     private MouseDiagramLayout mouseDiagram;
+    private KeyboardDiagramLayout keyboardDiagram;
     private int draggedDividerX;
     private long observedRevision = Long.MIN_VALUE;
     private String observedSharedError = "";
@@ -132,6 +143,7 @@ public final class KeysetScreen extends Screen {
 
     @Override
     protected void init() {
+        KeycapRenderer.resetFontMetrics();
         KeysetClient.ensureLoaded();
         observedRevision = KeysetClient.revision();
         if (statusMessage == null && KeysetClient.error() != null && KeysetClient.error().startsWith("keyset.error.")) {
@@ -144,9 +156,10 @@ public final class KeysetScreen extends Screen {
         rowBindingButtons.clear();
         rowUnbindButtons.clear();
         rowConflictButtons.clear();
-        rowFavoriteButtons.clear();
         rowSectionButtons.clear();
         rowSectionHideButtons.clear();
+        rowSectionUnbindButtons.clear();
+        decorativeInputButtons.clear();
         keyboardButtonKeys.clear();
         compactTabs.clear();
         viewport = EditorViewport.forSize(width, height);
@@ -162,8 +175,8 @@ public final class KeysetScreen extends Screen {
         mainX = panels.mainX();
         mainWidth = panels.mainWidth();
         keyboardPanelY = viewport.keyboardPanelY();
-        keyStep = Math.max(8, viewport.keyStep() * appearance.keyboardScale() / 100);
-        keyHeight = Math.max(6, keyStep - 2);
+        keyboardDiagram = null;
+        mouseDiagram = null;
         inputCardBottom = singlePane ? viewport.rowsBottom() : 312;
         summaryY = singlePane ? viewport.inputControlsY() - 16 : inputCardBottom - 44;
         categoryCardY = singlePane ? viewport.contentTop() : inputCardBottom + 12;
@@ -229,7 +242,7 @@ public final class KeysetScreen extends Screen {
     }
 
     private boolean hasActiveFilterChips() {
-        return virtualKeyFilter != null || category != null || modFilter != null || conflictsOnly || favoritesOnly;
+        return virtualKeyFilter != null || category != null || modFilter != null || conflictsOnly || unboundOnly;
     }
 
     private boolean showInput() { return !singlePane || compactPage == EditorViewport.Page.INPUT; }
@@ -239,6 +252,7 @@ public final class KeysetScreen extends Screen {
     private void applyCompactVisibility() {
         boolean input = showInput();
         keyboardButtonKeys.keySet().forEach(button -> button.visible = input);
+        decorativeInputButtons.forEach(button -> button.visible = input);
         if (!singlePane) return;
         boolean actions = showActions(), filters = showCategories();
         keyboardTabButton.visible = mouseTabButton.visible = input;
@@ -246,9 +260,10 @@ public final class KeysetScreen extends Screen {
         for (Button button : List.of(ctrlButton, shiftButton, altButton, deselectButton)) button.visible &= input;
         searchBox.visible = actions;
         searchClearButton.visible = actions && searchBox.getWidth() >= 40;
-        conflictsButton.visible = favoritesButton.visible = visibilityButton.visible = actions;
+        conflictsButton.visible = unboundButton.visible = visibilityButton.visible = actions;
+        sidebarSearchBox.visible = filters;
         for (List<Button> buttons : List.of(rowNameButtons, rowBindingButtons, rowUnbindButtons,
-                rowConflictButtons, rowFavoriteButtons, rowSectionButtons, rowSectionHideButtons, filterChipButtons)) {
+                rowConflictButtons, rowSectionButtons, rowSectionHideButtons, rowSectionUnbindButtons, filterChipButtons)) {
             buttons.forEach(button -> button.visible &= actions);
         }
         categoryButtons.forEach(button -> button.visible &= filters);
@@ -329,9 +344,15 @@ public final class KeysetScreen extends Screen {
     }
 
     private void initMainControls() {
-        int filterGroupWidth = Math.min(240, Math.max(132, mainWidth / 2));
-        int filterWidth = Math.max(32, (filterGroupWidth - 8) / 3);
-        int searchWidth = mainWidth - 24 - filterGroupWidth - 6;
+        int innerWidth = Math.max(1, mainWidth - 24);
+        int filterGap = singlePane ? 3 : 4;
+        int visibilityWidth = singlePane || mainWidth < 500 ? 24 : 64;
+        int desiredFilterGroupWidth = singlePane
+            ? Math.min(160, Math.max(96, innerWidth * 36 / 100))
+            : Math.min(240, Math.max(150, innerWidth * 32 / 100));
+        int filterWidth = Math.max(1, (desiredFilterGroupWidth - visibilityWidth - 2 * filterGap) / 2);
+        int filterGroupWidth = 2 * filterWidth + visibilityWidth + 2 * filterGap;
+        int searchWidth = Math.max(1, innerWidth - filterGroupWidth - 6);
         boolean showSearchClear = searchWidth >= 64;
         searchBox = new EditBox(font, mainX + (singlePane ? 8 : 12), searchY,
             Math.max(1, searchWidth - (showSearchClear ? 24 : 0)), viewport.searchHeight(), Component.translatable("keyset.search_hint"));
@@ -354,20 +375,23 @@ public final class KeysetScreen extends Screen {
             button -> clearSearch()), ButtonStyle.QUIET, true);
         searchClearButton.visible = showSearchClear;
         int filterX = mainX + mainWidth - 12 - filterGroupWidth;
-        int filterY = searchY - 2;
+        int filterY = singlePane ? searchY : searchY - 2;
         int filterHeight = singlePane ? viewport.controlHeight() + 4 : 24;
         conflictsButton = styled(addButton(Component.empty(), filterX, filterY,
             filterWidth, filterHeight, button -> { conflictsOnly = !conflictsOnly; bindingScroll = 0; refreshRows(); }), ButtonStyle.TAB, true);
-        favoritesButton = styled(addButton(Component.empty(), filterX + filterWidth + 4, filterY,
-            filterWidth, filterHeight, button -> { favoritesOnly = !favoritesOnly; bindingScroll = 0; refreshRows(); }), ButtonStyle.TAB, true);
-        visibilityButton = styled(addButton(Component.translatable("keyset.visibility_short"), filterX + 2 * (filterWidth + 4), filterY,
-            filterWidth, filterHeight, button -> openSectionVisibility()), ButtonStyle.TAB, true);
+        int unboundX = filterX + filterWidth + filterGap;
+        unboundButton = styled(addButton(Component.empty(), unboundX, filterY,
+            filterWidth, filterHeight, button -> { unboundOnly = !unboundOnly; bindingScroll = 0; refreshRows(); }), ButtonStyle.TAB, true);
+        int visibilityX = unboundX + filterWidth + filterGap;
+        visibilityButton = styled(addButton(singlePane || mainWidth < 500
+            ? Component.literal("…") : Component.translatable("keyset.visibility_short"), visibilityX, filterY,
+            visibilityWidth, filterHeight, button -> openSectionVisibility()), ButtonStyle.TAB, true);
         visibilityButton.setTooltip(Tooltip.create(Component.translatable("keyset.visibility_hint")));
         if (sidebarWidth < 320) {
-            int innerWidth = Math.max(1, sidebarWidth - 24);
-            int layoutWidth = Math.max(40, Math.min(88, innerWidth / 4));
+            int sidebarInnerWidth = Math.max(1, sidebarWidth - 24);
+            int layoutWidth = Math.max(40, Math.min(88, sidebarInnerWidth / 4));
             int tabGap = 4;
-            int tabsWidth = Math.max(2, innerWidth - layoutWidth - tabGap * 2);
+            int tabsWidth = Math.max(2, sidebarInnerWidth - layoutWidth - tabGap * 2);
             int keyboardWidth = Math.max(1, tabsWidth * 52 / 100);
             int mouseWidth = Math.max(1, tabsWidth - keyboardWidth);
             keyboardTabButton = styled(addButton(Component.translatable("keyset.input_keyboard"),
@@ -411,7 +435,7 @@ public final class KeysetScreen extends Screen {
             case 1 -> { category = null; categoryScroll = 0; }
             case 2 -> { modFilter = null; modScroll = 0; }
             case 3 -> conflictsOnly = false;
-            case 4 -> favoritesOnly = false;
+            case 4 -> unboundOnly = false;
             default -> { return; }
         }
         bindingScroll = 0;
@@ -440,9 +464,9 @@ public final class KeysetScreen extends Screen {
             active.add(new FilterChip(3, Component.translatable("keyset.filter_chip_conflicts"),
                 Component.translatable("keyset.filter_clear_conflicts")));
         }
-        if (favoritesOnly) {
-            active.add(new FilterChip(4, Component.translatable("keyset.filter_chip_favorites"),
-                Component.translatable("keyset.filter_clear_favorites")));
+        if (unboundOnly) {
+            active.add(new FilterChip(4, Component.translatable("keyset.filter_chip_unbound"),
+                Component.translatable("keyset.filter_clear_unbound")));
         }
         int available = Math.max(1, mainWidth - 24);
         int maxWidth = active.isEmpty() ? available
@@ -535,48 +559,57 @@ public final class KeysetScreen extends Screen {
     }
 
     private void initCategoryButtons() {
-        int buttonWidth = (sidebarWidth - 30) / 2;
-        boolean compactHeader = sidebarWidth < 320;
-        int categoryTabWidth = compactHeader ? 54 : 82;
-        int modTabWidth = compactHeader ? 42 : 58;
-        int allWidth = compactHeader ? 76 : 114;
-        if (sidebarWidth < 240) {
-            int availableWidth = Math.max(1, sidebarWidth - 44);
-            categoryTabWidth = availableWidth * 36 / 100;
-            modTabWidth = availableWidth * 28 / 100;
-            allWidth = Math.max(1, availableWidth - categoryTabWidth - modTabWidth);
-        }
+        int left = sidebarX + 12;
+        int innerWidth = Math.max(1, sidebarWidth - 24);
+        int tabGap = 4;
+        int controlGap = 4;
+        int tabsWidth = Math.max(2, (innerWidth - 2 * controlGap) * 3 / 4);
+        int tabWidth = Math.max(1, (tabsWidth - tabGap) / 2);
+        int resetWidth = Math.max(1, innerWidth - tabsWidth - controlGap);
         int filterControlY = singlePane ? viewport.categoryControlsY() : categoryCardY + 8;
         int filterControlHeight = singlePane ? viewport.controlHeight() : 22;
-        categoryFilterButton = styled(addButton(Component.empty(), sidebarX + 12, filterControlY, categoryTabWidth, filterControlHeight,
+        categoryFilterButton = styled(addButton(Component.empty(), left, filterControlY, tabWidth, filterControlHeight,
             button -> {
                 modFilterMode = false;
-                modFilter = null;
-                bindingScroll = 0;
                 updateControlLabels();
                 refreshRows();
             }), ButtonStyle.TAB, true);
-        modFilterButton = styled(addButton(Component.empty(), sidebarX + 16 + categoryTabWidth, filterControlY, modTabWidth, filterControlHeight,
+        modFilterButton = styled(addButton(Component.empty(), left + tabWidth + tabGap, filterControlY, tabWidth, filterControlHeight,
             button -> {
                 modFilterMode = true;
-                category = null;
-                bindingScroll = 0;
                 updateControlLabels();
                 refreshRows();
             }), ButtonStyle.TAB, true);
         allCategoryButton = styled(addButton(Component.translatable("keyset.category_all"),
-            sidebarX + sidebarWidth - 12 - allWidth, filterControlY, allWidth, filterControlHeight,
+            left + tabsWidth + controlGap, filterControlY, resetWidth, filterControlHeight,
             button -> {
                 if (modFilterMode) { modFilter = null; modScroll = 0; }
                 else { category = null; categoryScroll = 0; }
                 bindingScroll = 0;
                 refreshRows();
             }), ButtonStyle.TAB, true);
-        int rows = Math.max(0, (categoryListBottom - categoryListTop + 2) / 24);
-        for (int i = 0; i < rows * 2; i++) {
+        int searchY = filterControlY + filterControlHeight + 2;
+        int searchHeight = 18;
+        sidebarSearchBox = new EditBox(font, left, searchY, innerWidth, searchHeight,
+            Component.translatable("keyset.sidebar_search"));
+        sidebarSearchBox.setBordered(false);
+        sidebarSearchBox.setMaxLength(256);
+        sidebarSearchBox.setTextColor(UiTheme.text());
+        sidebarSearchBox.setValue(sidebarSearchQuery);
+        sidebarSearchBox.setHint(Component.translatable("keyset.sidebar_search"));
+        sidebarSearchBox.setResponder(value -> {
+            sidebarSearchQuery = value;
+            categoryScroll = 0;
+            modScroll = 0;
+            refreshCategoryButtons();
+        });
+        addRenderableWidget(sidebarSearchBox);
+        categoryListTop = searchY + searchHeight + 2;
+        int rows = Math.max(1, (categoryListBottom - categoryListTop + 2) / 20);
+        for (int i = 0; i < rows; i++) {
             final int slot = i;
-            Button button = styled(addButton(Component.empty(), sidebarX + 12 + i % 2 * (buttonWidth + 6),
-                categoryListTop + i / 2 * 24, buttonWidth, 22, clicked -> selectCategoryAt(slot)), ButtonStyle.QUIET, false);
+            Button button = styled(addButton(Component.empty(), left, categoryListTop + i * 20,
+                innerWidth, 18, clicked -> selectCategoryAt(slot)), ButtonStyle.QUIET, false);
             categoryButtons.add(button);
         }
     }
@@ -647,15 +680,13 @@ public final class KeysetScreen extends Screen {
         int bindWidth = Math.min(160, inner * 31 / 100);
         if (inner < 230) bindWidth = Math.max(1, Math.min(inner / 3, inner - 78));
         int nameWidth = Math.max(26, inner - bindWidth - 52);
-        int actionWidth = Math.max(1, nameWidth - (singlePane ? 24 : 26));
+        int actionWidth = nameWidth;
         int slots = Math.max(visibleRowCapacity(), (listBottom - viewport.rowsTop()) / rowHeight);
         for (int i = 0; i < slots; i++) {
             final int slot = i;
             int y = listTop + i * rowHeight;
             rowNameButtons.add(styled(addButton(Component.empty(), mainX + 12, y, actionWidth, rowButtonHeight,
                 button -> selectMappingAt(slot)), ButtonStyle.ROW, false));
-            rowFavoriteButtons.add(styled(addButton(Component.literal("☆"), mainX + 12 + actionWidth + 2, y,
-                22, rowButtonHeight, button -> toggleFavoriteAt(slot)), ButtonStyle.QUIET, true));
             rowBindingButtons.add(styled(addButton(Component.empty(), mainX + 12 + nameWidth + 4, y + 1, bindWidth, Math.min(19, rowHeight - 4),
                 button -> captureMappingAt(slot)), ButtonStyle.BINDING, true));
             rowConflictButtons.add(styled(addButton(Component.literal("!"),
@@ -663,12 +694,16 @@ public final class KeysetScreen extends Screen {
                 button -> inspectConflictAt(slot)), ButtonStyle.QUIET, true));
             rowUnbindButtons.add(styled(addButton(Component.literal("×"), mainX + mainWidth - 34, y, 20, rowButtonHeight,
                 button -> unbindMappingAt(slot)), ButtonStyle.QUIET, true));
-            rowSectionButtons.add(styled(addButton(Component.empty(), mainX + 8, y, mainWidth - 46, rowButtonHeight,
+            rowSectionButtons.add(styled(addButton(Component.empty(), mainX + 8, y, mainWidth - 70, rowButtonHeight,
                 button -> toggleSectionAt(slot)), ButtonStyle.SECTION, false));
             Button hide = styled(addButton(Component.literal("-"), mainX + mainWidth - 34, y, 20, rowButtonHeight,
-                button -> hideSectionAt(slot)), ButtonStyle.QUIET, true);
+                button -> hideSectionAt(slot)), ButtonStyle.SECTION_ACTION, true);
             hide.setTooltip(Tooltip.create(Component.translatable("keyset.visibility_hide_section")));
             rowSectionHideButtons.add(hide);
+            Button unbindSection = styled(addButton(Component.literal("×"), mainX + mainWidth - 58, y, 20, rowButtonHeight,
+                button -> confirmUnbindSectionAt(slot)), ButtonStyle.SECTION_ACTION, true);
+            unbindSection.setTooltip(Tooltip.create(Component.translatable("keyset.section_unbind")));
+            rowSectionUnbindButtons.add(unbindSection);
         }
     }
 
@@ -681,47 +716,34 @@ public final class KeysetScreen extends Screen {
     }
 
     private void initKeyboardButtons() {
-        keyboardUnit = Math.max(1, Math.min(18, (sidebarWidth - 70) / 27) * appearance.keyboardScale() / 100);
-        int groupMainWidth = 18 * keyboardUnit + 20;
-        int navWidth = 4 * keyboardUnit + 8;
-        int padWidth = 4 * keyboardUnit + 6;
-        int total = groupMainWidth + navWidth + padWidth + 16;
-        int x = sidebarX + Math.max(8, (sidebarWidth - total) / 2);
-        int y = keyboardPanelY;
-        for (KeyboardRow row : virtualKeyboardRows()) {
-            addKeyGroup(row.main(), x, y, groupMainWidth, keyboardUnit, 2, row.mainOffset());
-            addKeyGroup(row.navigation(), x + groupMainWidth + 8, y, navWidth, keyboardUnit, 2, 0);
-            y += keyStep;
-        }
-        int padX = x + groupMainWidth + navWidth + 16;
-        int padY = keyboardPanelY + keyStep;
-        for (NumpadLayout.Key cell : NumpadLayout.keys()) {
-            VirtualKey key = key(InputConstants.getKey(cell.input()).getValue(), cell.label(), cell.columns());
-            Button button = styled(addButton(Component.literal(key.label()), padX + cell.x(keyboardUnit, 2),
-                padY + cell.y(keyStep), cell.width(keyboardUnit, 2), cell.height(keyStep, 2),
-                ignored -> onVirtualKey(key)), ButtonStyle.KEYCAP, true);
+        int bottom = singlePane ? viewport.inputControlsY() - 6 : summaryY - 22;
+        keyboardDiagram = KeyboardDiagramLayout.forArea(sidebarX + 12, keyboardPanelY,
+            Math.max(1, sidebarWidth - 24), Math.max(1, bottom - keyboardPanelY), appearance.keyboardScale(),
+            appearance.keyboardFormFactor(), keyboardLayout, appearance.keyboardPresentation());
+        for (KeyboardDiagramLayout.Cell cell : keyboardDiagram.keys()) {
+            if (cell.input().equals("key.keyboard.fn")) {
+                var rect = cell.bounds();
+                var fn = (FlatButton) styled(addButton(Component.literal(cell.label()), rect.x(), rect.y(),
+                    rect.width(), rect.height(), ignored -> {}), ButtonStyle.KEYCAP, true);
+                fn.keyboardInput = cell.input();
+                fn.freeKey = true;
+                fn.setTooltip(Tooltip.create(Component.translatable("keyset.keyboard_fn_hint")));
+                decorativeInputButtons.add(fn);
+                continue;
+            }
+            VirtualKey key = new VirtualKey(InputConstants.getKey(cell.input()).getValue(), cell.label(), false);
+            KeyboardDiagramLayout.Rect bounds = cell.bounds();
+            Button button = styled(addButton(Component.literal(cell.label()), bounds.x(), bounds.y(),
+                bounds.width(), bounds.height(), ignored -> onVirtualKey(key)), ButtonStyle.KEYCAP, true);
+            ((FlatButton) button).keyboardInput = cell.input();
             keyboardButtonKeys.put(button, key);
-        }
-    }
-
-    private void addKeyGroup(List<VirtualKey> keys, int groupX, int y, int groupWidth, int unit, int gap, float offset) {
-        if (keys.isEmpty()) return;
-        int rowWidth = keys.stream().mapToInt(key -> Math.max(1, Math.round(unit * key.width()))).sum()
-            + (keys.size() - 1) * gap;
-        int x = groupX + Math.max(0, (groupWidth - rowWidth) / 2) + Math.round(unit * offset);
-        for (VirtualKey key : keys) {
-            int w = Math.max(1, Math.round(unit * key.width()));
-            Button button = styled(addButton(Component.literal(key.label()), x, y, w, keyHeight,
-                ignored -> onVirtualKey(key)), ButtonStyle.KEYCAP, true);
-            keyboardButtonKeys.put(button, key);
-            x += w + gap;
         }
     }
 
     private void initMouseButtons() {
         int bottom = singlePane ? viewport.inputControlsY() - 6 : summaryY - 22;
         mouseDiagram = MouseDiagramLayout.forArea(sidebarX + 12, keyboardPanelY,
-            Math.max(1, sidebarWidth - 24), Math.max(1, bottom - keyboardPanelY), appearance.keyboardScale());
+            Math.max(1, sidebarWidth - 24), Math.max(1, bottom - keyboardPanelY), appearance.mouseScale());
         for (var part : mouseDiagram.buttons()) {
             int code = switch (part.control()) {
                 case LEFT -> InputConstants.MOUSE_BUTTON_LEFT;
@@ -756,6 +778,8 @@ public final class KeysetScreen extends Screen {
         }
         FlatButton button = (FlatButton) addButton(caption, x, y, w, h, ignored -> onVirtualKey(key));
         button.mouseControl = control;
+        button.mouseLayout = mouseDiagram;
+        button.mouseArtwork = mouseArtwork;
         button.setTooltipDelay(java.time.Duration.ofMillis(250));
         keyboardButtonKeys.put(button, key);
     }
@@ -780,13 +804,17 @@ public final class KeysetScreen extends Screen {
         modFilterButton.setTooltip(Tooltip.create(Component.translatable("keyset.filter_mods")));
         setButtonState(categoryFilterButton, modFilterMode ? VisualState.NORMAL : VisualState.SELECTED);
         setButtonState(modFilterButton, modFilterMode ? VisualState.SELECTED : VisualState.NORMAL);
-        allCategoryButton.setMessage(Component.translatable(modFilterMode ? "keyset.mods_all" : "keyset.category_all"));
-        conflictsButton.setMessage(Component.translatable("keyset.conflicts_filter"));
+        allCategoryButton.setMessage(Component.translatable("keyset.sidebar_all"));
+        allCategoryButton.setTooltip(Tooltip.create(Component.translatable(
+            modFilterMode ? "keyset.mods_all" : "keyset.category_all")));
+        boolean shortFilterLabels = singlePane || conflictsButton.getWidth() < 56;
+        conflictsButton.setMessage(shortFilterLabels ? Component.literal("!")
+            : Component.translatable("keyset.conflicts_filter"));
         conflictsButton.setTooltip(Tooltip.create(Component.translatable("keyset.conflicts_filter")));
         setButtonState(conflictsButton, conflictsOnly ? VisualState.SELECTED : VisualState.NORMAL);
-        favoritesButton.setMessage(Component.translatable("keyset.favorites_filter"));
-        favoritesButton.setTooltip(Tooltip.create(Component.translatable("keyset.favorites_filter")));
-        setButtonState(favoritesButton, favoritesOnly ? VisualState.SELECTED : VisualState.NORMAL);
+        unboundButton.setMessage(shortFilterLabels ? Component.literal("U") : Component.translatable("keyset.filter_unbound"));
+        unboundButton.setTooltip(Tooltip.create(Component.translatable("keyset.filter_unbound")));
+        setButtonState(unboundButton, unboundOnly ? VisualState.SELECTED : VisualState.NORMAL);
         layoutButton.setMessage(layoutIndex < 0
             ? Component.translatable("keyset.layout_auto", keyboardLayout.id().toUpperCase(Locale.ROOT))
             : Component.literal(keyboardLayout.shortName() + "  ▾"));
@@ -821,11 +849,9 @@ public final class KeysetScreen extends Screen {
                 KeysetClient.categoryLabel(mapping.getCategory()).getString(), mapping.getCategory().id().toString(),
                 modName.getString(), owner.id(), bindingLabel.getString(), String.join(" ", value.keys()), modifiers);
             mappingViews.put(mapping, new MappingView(name, bindingLabel, owner.id(), search, tooltip));
-            if (!KeysetClient.isCategoryHidden(mapping.getCategory().id().toString()) && !KeysetClient.isModHidden(owner.id())) {
-                categoryCounts.merge(mapping.getCategory(), 1, Integer::sum);
-                ModFilter previous = modCounts.get(owner.id());
-                modCounts.put(owner.id(), new ModFilter(owner.id(), modName.getString(), previous == null ? 1 : previous.count() + 1));
-            }
+            categoryCounts.merge(mapping.getCategory(), 1, Integer::sum);
+            ModFilter previous = modCounts.get(owner.id());
+            modCounts.put(owner.id(), new ModFilter(owner.id(), modName.getString(), previous == null ? 1 : previous.count() + 1));
         }
         allMappings = mappings.stream().sorted(Comparator
             .comparing((KeyMapping mapping) -> KeysetClient.categoryLabel(mapping.getCategory()).getString(), String.CASE_INSENSITIVE_ORDER)
@@ -833,6 +859,9 @@ public final class KeysetScreen extends Screen {
             .thenComparing(mapping -> mappingViews.get(mapping).search().name(), String.CASE_INSENSITIVE_ORDER)).toList();
         diagramIndex = new BindingIndex<>(allMappings.stream().filter(this::isMappingVisible).toList(),
             bindingIndex::binding, KeysetClient::bindingContextsConflict);
+        hiddenSections.clear();
+        hiddenSections.addAll(categoryCounts.keySet());
+        for (KeyMapping mapping : allMappings) if (isMappingVisible(mapping)) hiddenSections.remove(mapping.getCategory());
         categories = categoryCounts.keySet().stream().sorted(Comparator.comparing(value -> KeysetClient.categoryLabel(value).getString(),
             String.CASE_INSENSITIVE_ORDER)).toList();
         if (category != null && !categories.contains(category)) category = null;
@@ -850,22 +879,25 @@ public final class KeysetScreen extends Screen {
     private void refreshRows() {
         if (searchBox == null) return;
         String query = searchBox.getValue().trim().toLowerCase(Locale.ROOT);
-        FilterState filter = new FilterState(category, modFilter, conflictsOnly, favoritesOnly, query, virtualKeyFilter, collapseRevision);
+        FilterState filter = new FilterState(category, modFilter, conflictsOnly, unboundOnly,
+            query, virtualKeyFilter, collapseRevision);
         if (!filter.equals(appliedFilter)) {
             ActionSearch.Query parsedQuery = ActionSearch.parse(query);
+            List<KeyMapping> virtualKeyMappings = virtualKeyFilter == null ? List.of()
+                : bindingIndex.forInput(virtualKeyFilter);
             filteredMappings = allMappings.stream()
-                .filter(this::isMappingVisible)
+                .filter(mapping -> virtualKeyFilter == null || isMappingVisible(mapping))
                 .filter(mapping -> category == null || category.equals(mapping.getCategory()))
                 .filter(mapping -> modFilter == null || modFilter.equals(mappingViews.get(mapping).modId()))
                 .filter(mapping -> !conflictsOnly || bindingIndex.conflicts(mapping))
-                .filter(mapping -> !favoritesOnly || KeysetClient.isFavorite(mapping))
+                .filter(mapping -> !unboundOnly || bindingIndex.binding(mapping).keys().isEmpty())
                 .filter(mapping -> (virtualKeyFilter != null || parsedQuery.matches(mappingViews.get(mapping).search()))
-                    && (virtualKeyFilter == null || bindingIndex.binding(mapping).keys().contains(virtualKeyFilter)))
+                    && (virtualKeyFilter == null || virtualKeyMappings.contains(mapping)))
                 .toList();
             displayEntries = makeDisplayEntries(filteredMappings);
             appliedFilter = filter;
         }
-        if (selectedMapping != null && !filteredMappings.contains(selectedMapping)) {
+        if (selectedMapping != null && (!filteredMappings.contains(selectedMapping) || !isMappingVisible(selectedMapping))) {
             selectedMapping = null;
             capturing = false;
             pendingModifier = null;
@@ -889,29 +921,37 @@ public final class KeysetScreen extends Screen {
         for (int slot = 0; slot < rowNameButtons.size(); slot++) {
             int rowY = listTop + slot * rowHeight;
             rowNameButtons.get(slot).setY(rowY);
-            rowFavoriteButtons.get(slot).setY(rowY);
             rowBindingButtons.get(slot).setY(rowY + 1);
             rowUnbindButtons.get(slot).setY(rowY);
             rowConflictButtons.get(slot).setY(rowY);
             rowSectionButtons.get(slot).setY(rowY);
             rowSectionHideButtons.get(slot).setY(rowY);
+            rowSectionUnbindButtons.get(slot).setY(rowY);
             ActionListEntry entry = slot < visibleRowCapacity() ? entryAt(slot) : null;
             KeyMapping mapping = entry == null || entry.isSection() ? null : entry.mapping();
-            Button name = rowNameButtons.get(slot), favorite = rowFavoriteButtons.get(slot);
+            Button name = rowNameButtons.get(slot);
             Button binding = rowBindingButtons.get(slot), clear = rowUnbindButtons.get(slot);
             Button conflict = rowConflictButtons.get(slot);
             Button section = rowSectionButtons.get(slot);
             boolean sectionRow = entry != null && entry.isSection();
             section.visible = sectionRow;
             rowSectionHideButtons.get(slot).visible = sectionRow;
-            name.visible = favorite.visible = binding.visible = clear.visible = mapping != null;
+            rowSectionUnbindButtons.get(slot).visible = sectionRow;
+            name.visible = binding.visible = clear.visible = mapping != null;
             conflict.visible = mapping != null && bindingIndex.conflicts(mapping);
             if (sectionRow) {
                 Component sectionName = KeysetClient.categoryLabel(entry.category());
                 boolean collapsed = isSectionCollapsed(entry.category());
+                boolean hidden = isSectionHidden(entry.category());
+                ((FlatButton) section).inactiveSection = hidden;
+                ((FlatButton) rowSectionUnbindButtons.get(slot)).inactiveSection = hidden;
+                Button hide = rowSectionHideButtons.get(slot);
+                hide.setMessage(Component.literal(hidden ? "+" : "-"));
+                hide.setTooltip(Tooltip.create(Component.translatable(hidden ? "keyset.section_restore" : "keyset.visibility_hide_section")));
                 String arrow = collapsed ? "▸" : "▾";
-                section.setMessage(Component.literal(arrow + "  " + sectionName.getString() + "  ·  " + entry.count()));
-                section.setTooltip(Tooltip.create(Component.translatable("keyset.section_toggle_tip", sectionName)));
+                section.setMessage(Component.literal(arrow + "  " + sectionName.getString() + "  ·  " + entry.count())
+                    .append(hidden ? Component.translatable("keyset.section_hidden_suffix") : Component.empty()));
+                section.setTooltip(Tooltip.create(Component.translatable(hidden ? "keyset.section_hidden_tip" : "keyset.section_toggle_tip", sectionName)));
                 setButtonState(section, Objects.equals(category, entry.category()) ? VisualState.SELECTED : VisualState.NORMAL);
                 continue;
             }
@@ -936,11 +976,6 @@ public final class KeysetScreen extends Screen {
                 conflict.setTooltipDelay(java.time.Duration.ofMillis(300));
                 setButtonState(conflict, VisualState.CONFLICT);
             }
-            boolean isFavorite = KeysetClient.isFavorite(mapping);
-            favorite.setMessage(Component.literal(isFavorite ? "★" : "☆"));
-            favorite.setTooltip(Tooltip.create(Component.translatable(isFavorite ? "keyset.favorite_remove" : "keyset.favorite_add")));
-            favorite.setTooltipDelay(java.time.Duration.ofMillis(350));
-            setButtonState(favorite, isFavorite ? VisualState.SELECTED : VisualState.NORMAL);
         }
         // Scroll and capture paths update this viewport without going through refreshRows.
         // Keep buttons from hidden compact pages hidden on those paths too.
@@ -957,24 +992,18 @@ public final class KeysetScreen extends Screen {
         groups.forEach((section, sectionMappings) -> {
             entries.add(new ActionListEntry(null, section, sectionMappings.size()));
             if (!isSectionCollapsed(section)) {
-                for (KeyMapping mapping : sectionMappings) entries.add(new ActionListEntry(mapping, section, 0));
+                for (KeyMapping mapping : sectionMappings) if (isMappingVisible(mapping)) entries.add(new ActionListEntry(mapping, section, 0));
             }
         });
         return List.copyOf(entries);
     }
 
     private boolean isSectionCollapsed(KeyMapping.Category section) {
-        return COLLAPSED_SECTIONS.contains(section.id().toString());
+        return isSectionHidden(section) || COLLAPSED_SECTIONS.contains(section.id().toString());
     }
 
-    private void toggleFavoriteAt(int slot) {
-        KeyMapping mapping = mappingAt(slot);
-        if (mapping == null) return;
-        if (runAction(() -> KeysetClient.toggleFavorite(mapping))) {
-            statusMessage = Component.translatable(KeysetClient.isFavorite(mapping)
-                ? "keyset.favorite_added" : "keyset.favorite_removed");
-            statusIsError = false;
-        }
+    private boolean isSectionHidden(KeyMapping.Category section) {
+        return hiddenSections.contains(section);
     }
 
     private int visibleRowCapacity() {
@@ -986,58 +1015,72 @@ public final class KeysetScreen extends Screen {
     }
 
     private void refreshCategoryButtons() {
-        int buttonWidth = (sidebarWidth - 30) / 2;
-        int visibleMods = Math.max(1, categoryButtons.size() / 2);
-        if (modFilterMode) modScroll = clampScroll(modScroll, mods.size(), visibleMods);
-        else categoryScroll = clampScroll(categoryScroll, categories.size(), categoryButtons.size());
+        searchedCategories = SidebarSearch.filter(categories, sidebarSearchQuery,
+            value -> KeysetClient.categoryLabel(value).getString() + " " + value.id());
+        searchedMods = SidebarSearch.filter(mods, sidebarSearchQuery,
+            value -> value.name() + " " + value.id());
+        int visibleCount = Math.max(1, categoryButtons.size());
+        if (modFilterMode) modScroll = clampScroll(modScroll, searchedMods.size(), visibleCount);
+        else categoryScroll = clampScroll(categoryScroll, searchedCategories.size(), visibleCount);
         setButtonState(allCategoryButton, (modFilterMode ? modFilter == null : category == null)
             ? VisualState.SELECTED : VisualState.NORMAL);
+        sidebarButtonCounts.clear();
         for (int slot = 0; slot < categoryButtons.size(); slot++) {
             Button button = categoryButtons.get(slot);
+            button.setX(sidebarX + 12);
+            button.setY(categoryListTop + slot * 20);
+            button.setSize(Math.max(1, sidebarWidth - 24), 18);
+            int scroll = modFilterMode ? modScroll : categoryScroll;
+            int index = scroll + slot;
+            int count;
+            boolean selected;
+            String tooltip;
             if (modFilterMode) {
-                int index = modScroll + slot;
-                button.visible = slot < visibleMods && index < mods.size();
+                button.visible = index < searchedMods.size();
                 if (!button.visible) continue;
-                ModFilter value = mods.get(index);
-                button.setX(sidebarX + 12);
-                button.setY(categoryListTop + slot * 24);
-                button.setSize(sidebarWidth - 24, 22);
-                button.setMessage(Component.literal(value.name() + "  ·  " + value.count()));
-                button.setTooltip(Tooltip.create(Component.literal(value.name() + "  ·  " + value.id())));
-                setButtonState(button, value.id().equals(modFilter) ? VisualState.SELECTED : VisualState.NORMAL);
+                ModFilter value = searchedMods.get(index);
+                count = value.count();
+                selected = value.id().equals(modFilter);
+                tooltip = value.name() + " · " + value.id();
+                button.setMessage(Component.literal(fitSidebarName(value.name(), count, button.getWidth())));
             } else {
-                int index = categoryScroll + slot;
-                button.visible = index < categories.size();
+                button.visible = index < searchedCategories.size();
                 if (!button.visible) continue;
-                KeyMapping.Category value = categories.get(index);
-                // LayoutElement.setRectangle takes width/height first. Keep position and size explicit.
-                button.setX(sidebarX + 12 + slot % 2 * (buttonWidth + 6));
-                button.setY(categoryListTop + slot / 2 * 24);
-                button.setSize(buttonWidth, 22);
-                int count = categoryCounts.getOrDefault(value, 0);
-                button.setMessage(Component.literal(KeysetClient.categoryLabel(value).getString() + "  ·  " + count));
-                button.setTooltip(null);
-                setButtonState(button, value.equals(category) ? VisualState.SELECTED : VisualState.NORMAL);
+                KeyMapping.Category value = searchedCategories.get(index);
+                String name = KeysetClient.categoryLabel(value).getString();
+                count = categoryCounts.getOrDefault(value, 0);
+                selected = value.equals(category);
+                tooltip = name;
+                button.setMessage(Component.literal(fitSidebarName(name, count, button.getWidth())));
             }
+            button.setTooltip(Tooltip.create(Component.literal(tooltip)));
+            sidebarButtonCounts.put(button, count);
+            setButtonState(button, selected ? VisualState.SELECTED : VisualState.NORMAL);
         }
         // The category and action lists overlap in compact mode, so every category refresh
         // must restore the visibility mask for the currently selected page.
         applyCompactVisibility();
     }
 
+    private String fitSidebarName(String name, int count, int width) {
+        int availableNameWidth = Math.max(1, width - font.width(Integer.toString(count)) - 26);
+        if (font.width(name) <= availableNameWidth) return name;
+        return font.plainSubstrByWidth(name, Math.max(1, availableNameWidth - font.width("…"))) + "…";
+    }
+
     private void selectCategoryAt(int slot) {
         if (modFilterMode) {
             int index = modScroll + slot;
-            if (slot >= 0 && slot < Math.max(1, categoryButtons.size() / 2) && index >= 0 && index < mods.size()) {
-                modFilter = mods.get(index).id();
+            if (slot >= 0 && slot < categoryButtons.size() && index >= 0 && index < searchedMods.size()) {
+                modFilter = searchedMods.get(index).id();
                 bindingScroll = 0;
                 if (singlePane) compactPage = EditorViewport.Page.ACTIONS;
                 refreshRows();
             }
         } else {
             int index = categoryScroll + slot;
-            if (index >= 0 && index < categories.size()) {
-                category = categories.get(index);
+            if (index >= 0 && index < searchedCategories.size()) {
+                category = searchedCategories.get(index);
                 bindingScroll = 0;
                 if (singlePane) compactPage = EditorViewport.Page.ACTIONS;
                 refreshRows();
@@ -1048,18 +1091,26 @@ public final class KeysetScreen extends Screen {
     private void refreshKeyboardButtons() {
         for (Map.Entry<Button, VirtualKey> entry : keyboardButtonKeys.entrySet()) {
             String key = keyName(entry.getValue());
+            List<KeyMapping> visibleInputs = diagramIndex.forInput(key);
+            boolean free = bindingIndex.forInput(key).isEmpty();
             boolean selected = selectedMapping == null ? key.equals(virtualKeyFilter)
-                : bindingIndex.binding(selectedMapping).keys().contains(key);
+                : bindingIndex.forInput(key).contains(selectedMapping);
             setButtonState(entry.getKey(), selected ? VisualState.SELECTED
                 : diagramIndex.keyConflicts(key) ? VisualState.CONFLICT
-                : diagramIndex.forKey(key).isEmpty() ? VisualState.NORMAL : VisualState.ASSIGNED);
-            if (entry.getValue().mouse()) {
-                Component tip = inputLabel(key).copy();
-                for (KeyMapping mapping : diagramIndex.forKey(key).stream().limit(4).toList()) {
-                    tip = tip.copy().append("\n").append(KeysetClient.name(mapping));
-                }
-                entry.getKey().setTooltip(Tooltip.create(tip));
+                : visibleInputs.isEmpty() ? VisualState.NORMAL : VisualState.ASSIGNED);
+            if (entry.getKey() instanceof FlatButton button) {
+                button.freeKey = free;
+                button.assignedKey = !visibleInputs.isEmpty();
+                button.inputConflict = diagramIndex.keyConflicts(key);
             }
+            Component tip = inputLabel(key).copy();
+            if (free) tip = tip.copy().append("\n").append(Component.translatable("keyset.key_free"));
+            else if (visibleInputs.size() > 1) tip = tip.copy().append("\n")
+                .append(Component.translatable("keyset.key_multiple", visibleInputs.size()));
+            for (KeyMapping mapping : visibleInputs.stream().limit(4).toList()) {
+                tip = tip.copy().append("\n").append(KeysetClient.name(mapping));
+            }
+            entry.getKey().setTooltip(Tooltip.create(tip));
         }
     }
 
@@ -1359,74 +1410,6 @@ public final class KeysetScreen extends Screen {
         init();
     }
 
-    private List<KeyboardRow> virtualKeyboardRows() {
-        List<KeyboardRow> rows = new ArrayList<>();
-        List<VirtualKey> function = new ArrayList<>();
-        function.add(key(InputConstants.KEY_ESCAPE, "ESC", 1.5f));
-        int[] functionCodes = {InputConstants.KEY_F1, InputConstants.KEY_F2, InputConstants.KEY_F3, InputConstants.KEY_F4,
-            InputConstants.KEY_F5, InputConstants.KEY_F6, InputConstants.KEY_F7, InputConstants.KEY_F8,
-            InputConstants.KEY_F9, InputConstants.KEY_F10, InputConstants.KEY_F11, InputConstants.KEY_F12};
-        for (int i = 0; i < functionCodes.length; i++) function.add(key(functionCodes[i], "F" + (i + 1), 1.3f));
-        rows.add(new KeyboardRow(function,
-            weightedKeys(new String[] {"PRT", "SCR", "PAU"},
-                new int[] {InputConstants.KEY_PRINTSCREEN, InputConstants.KEY_SCROLLLOCK, InputConstants.KEY_PAUSE},
-                new float[] {1.4f, 1.4f, 1.4f}), 0));
-
-        rows.add(new KeyboardRow(weightedKeys(
-            new String[] {"`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BS"},
-            new int[] {InputConstants.KEY_GRAVE, InputConstants.KEY_1, InputConstants.KEY_2, InputConstants.KEY_3,
-                InputConstants.KEY_4, InputConstants.KEY_5, InputConstants.KEY_6, InputConstants.KEY_7,
-                InputConstants.KEY_8, InputConstants.KEY_9, InputConstants.KEY_0, InputConstants.KEY_MINUS,
-                InputConstants.KEY_EQUALS, InputConstants.KEY_BACKSPACE},
-            new float[] {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.8f}),
-            keys(new String[] {"IN", "HM", "PU"}, new int[] {InputConstants.KEY_INSERT, InputConstants.KEY_HOME, InputConstants.KEY_PAGEUP}), 0));
-
-        List<VirtualKey> topLetters = layoutLetterKeys(0);
-        List<VirtualKey> qrow = new ArrayList<>();
-        qrow.add(key(InputConstants.KEY_TAB, "TAB", 1.6f));
-        qrow.addAll(topLetters);
-        qrow.addAll(keys(new String[] {"[", "]", "\\"},
-            new int[] {InputConstants.KEY_LBRACKET, InputConstants.KEY_RBRACKET, InputConstants.KEY_BACKSLASH}));
-        rows.add(new KeyboardRow(qrow,
-            keys(new String[] {"DL", "EN", "PD"}, new int[] {InputConstants.KEY_DELETE, InputConstants.KEY_END, InputConstants.KEY_PAGEDOWN}), 0.4f));
-
-        List<VirtualKey> arow = new ArrayList<>();
-        arow.add(key(InputConstants.KEY_CAPSLOCK, "CAPS", 1.9f));
-        arow.addAll(layoutLetterKeys(1));
-        arow.add(key(InputConstants.KEY_APOSTROPHE, "'", 1));
-        arow.add(key(InputConstants.KEY_RETURN, "ENT", 2));
-        rows.add(new KeyboardRow(arow,
-            keys(new String[] {"↑"}, new int[] {InputConstants.KEY_UP}), 0.7f));
-
-        List<VirtualKey> zrow = new ArrayList<>();
-        zrow.add(key(InputConstants.KEY_LSHIFT, "SHIFT", 2.3f));
-        zrow.addAll(layoutLetterKeys(2));
-        zrow.add(key(InputConstants.KEY_RSHIFT, "SHIFT", 2.3f));
-        rows.add(new KeyboardRow(zrow,
-            keys(new String[] {"←", "↓", "→"}, new int[] {InputConstants.KEY_LEFT, InputConstants.KEY_DOWN, InputConstants.KEY_RIGHT}), 0.8f));
-
-        List<VirtualKey> bottom = weightedKeys(
-            new String[] {"CTRL", "WIN", "ALT", "SPACE", "ALT", "WIN", "CTRL"},
-            new int[] {InputConstants.KEY_LCONTROL, InputConstants.KEY_LGUI, InputConstants.KEY_LALT, InputConstants.KEY_SPACE,
-                InputConstants.KEY_RALT, InputConstants.KEY_RGUI, InputConstants.KEY_RCONTROL},
-            new float[] {1.8f, 1.3f, 1.3f, 4.3f, 1.3f, 1.3f, 1.8f});
-        rows.add(new KeyboardRow(bottom, List.of(), 0.4f));
-        return rows;
-    }
-
-    private List<VirtualKey> layoutLetterKeys(int row) {
-        List<VirtualKey> result = new ArrayList<>();
-        for (int i = 0; i < LETTER_CODES[row].length; i++) {
-            result.add(key(LETTER_CODES[row][i], PHYSICAL_LETTERS[row][i].toUpperCase(Locale.ROOT), 1));
-        }
-        return result;
-    }
-
-    private VirtualKey key(int code, String label, float width) {
-        String physical = physicalKey(code);
-        return new VirtualKey(code, physical == null ? label : keyboardLayout.label(physical, label), false, width);
-    }
-
     private static String physicalKey(int code) {
         for (int row = 0; row < LETTER_CODES.length; row++) {
             for (int col = 0; col < LETTER_CODES[row].length; col++) {
@@ -1446,6 +1429,9 @@ public final class KeysetScreen extends Screen {
     }
 
     private Component inputLabel(String keyName) {
+        String override = dev.keyset.editor.KeyboardKeyNames.translationKey(keyName,
+            KeysetClient.appearance().keyboardPresentation().platform());
+        if (override != null) return Component.translatable(override);
         InputConstants.Key key = InputConstants.getKey(keyName);
         if (keyName.startsWith("key.keyboard.")) {
             String physical = physicalKey(key.getValue());
@@ -1455,22 +1441,9 @@ public final class KeysetScreen extends Screen {
     }
 
     private Component bindingDisplay(Binding value) {
-        String prefix = (value.ctrl() ? "Ctrl + " : "") + (value.shift() ? "Shift + " : "")
-            + (value.alt() ? "Alt + " : "") + (value.command() ? "Cmd + " : "");
+        String prefix = KeysetClient.modifierPrefix(value);
         var result = Component.literal(prefix).append(inputLabel(value.key()));
         for (String extra : value.extraKeys()) result.append(" + ").append(inputLabel(extra));
-        return result;
-    }
-
-    private List<VirtualKey> weightedKeys(String[] labels, int[] codes, float[] widths) {
-        List<VirtualKey> result = new ArrayList<>();
-        for (int i = 0; i < labels.length; i++) result.add(key(codes[i], labels[i], widths[i]));
-        return result;
-    }
-
-    private List<VirtualKey> keys(String[] labels, int[] codes) {
-        List<VirtualKey> result = new ArrayList<>();
-        for (int i = 0; i < labels.length; i++) result.add(key(codes[i], labels[i], 1));
         return result;
     }
 
@@ -1543,6 +1516,7 @@ public final class KeysetScreen extends Screen {
     private void toggleSectionAt(int slot) {
         ActionListEntry entry = entryAt(slot);
         if (entry == null || !entry.isSection()) return;
+        if (isSectionHidden(entry.category())) return;
         boolean collapsed = COLLAPSED_SECTIONS.add(entry.category().id().toString());
         if (!collapsed) COLLAPSED_SECTIONS.remove(entry.category().id().toString());
         collapseRevision++;
@@ -1557,12 +1531,26 @@ public final class KeysetScreen extends Screen {
         ActionListEntry entry = entryAt(slot);
         if (entry == null || !entry.isSection()) return;
         int anchor = bindingScroll;
-        if (runAction(() -> KeysetClient.setCategoryHidden(entry.category().id().toString(), true))) {
+        boolean hidden = isSectionHidden(entry.category());
+        if (hidden) COLLAPSED_SECTIONS.remove(entry.category().id().toString());
+        if (runAction(() -> KeysetClient.setSectionHidden(entry.category(), !hidden))) {
             bindingScroll = clampScroll(anchor, displayEntries.size(), visibleRowCapacity());
-            statusMessage = Component.translatable("keyset.visibility_hidden_notice", KeysetClient.categoryLabel(entry.category()));
+            statusMessage = Component.translatable(hidden ? "keyset.section_restored_notice" : "keyset.visibility_hidden_notice", KeysetClient.categoryLabel(entry.category()));
             statusIsError = false;
             refreshVisibleRows();
         }
+    }
+
+    private void confirmUnbindSectionAt(int slot) {
+        ActionListEntry entry = entryAt(slot);
+        if (entry == null || !entry.isSection()) return;
+        long revision = KeysetClient.revision();
+        int count = (int) allMappings.stream().filter(mapping -> mapping.getCategory().equals(entry.category())).count();
+        minecraft.setScreenAndShow(new ConfirmScreen(confirmed -> {
+            if (confirmed) runAction(() -> KeysetClient.unbindCategory(entry.category().id().toString(), revision));
+            minecraft.setScreenAndShow(this);
+        }, Component.translatable("keyset.section_unbind_title"), Component.translatable("keyset.section_unbind_prompt",
+            KeysetClient.categoryLabel(entry.category()), count), Component.translatable("keyset.confirm"), Component.translatable("keyset.cancel")));
     }
 
     private void bindCaptured(String key, boolean ctrl, boolean shift, boolean alt) {
@@ -1734,7 +1722,7 @@ public final class KeysetScreen extends Screen {
         } else {
             KeysetBranding.drawLogo(graphics, 16, 17, 30, 30);
             graphics.text(font, "KEYSET", 53, 20, 0xFFFFFFFF, true);
-            graphics.text(font, KeysetBranding.VERSION + "  /  26.3", 53, 36, 0xFFB2B7B5, true);
+            graphics.text(font, KeysetBranding.VERSION + "+mc26.3", 53, 36, 0xFFB2B7B5, true);
             graphics.text(font, Component.translatable("keyset.profile"), profileCycleButton.getX(), 12, 0xFFB2B7B5, true);
             graphics.fill(16, 57, width - 16, 58, UiTheme.border());
             graphics.fill(16, height - 48, width - 16, height - 47, UiTheme.border());
@@ -1743,8 +1731,15 @@ public final class KeysetScreen extends Screen {
         if (showInput()) {
             int cardTop = singlePane ? viewport.contentTop() : 64;
             drawCard(graphics, sidebarX, cardTop, sidebarWidth, inputCardBottom - cardTop);
-            graphics.fill(sidebarX + 8, keyboardPanelY - 4, sidebarX + sidebarWidth - 8,
-                keyboardPanelY + keyStep * 6 + 4, 0x38000000);
+            if (mouseMode) {
+                int bottom = singlePane ? viewport.inputControlsY() - 6 : summaryY - 22;
+                graphics.fill(sidebarX + 8, keyboardPanelY - 4, sidebarX + sidebarWidth - 8,
+                    bottom + 4, 0x38000000);
+            } else if (keyboardDiagram != null) {
+                KeyboardDiagramLayout.Rect bounds = keyboardDiagram.bounds();
+                graphics.fill(bounds.x() - 4, bounds.y() - 4, bounds.x() + bounds.width() + 4,
+                    bounds.y() + bounds.height() + 4, 0x38000000);
+            }
         }
         if (showCategories()) drawCard(graphics, sidebarX, categoryCardY, sidebarWidth,
             singlePane ? inputCardBottom - categoryCardY : height - 54 - categoryCardY);
@@ -1780,6 +1775,16 @@ public final class KeysetScreen extends Screen {
         }
 
         for (int i = 0; i < visibleRowCapacity(); i++) {
+            ActionListEntry entry = entryAt(i);
+            if (entry != null && entry.isSection()) {
+                int y = listTop + i * rowHeight;
+                int left = mainX + 8, right = mainX + mainWidth - 12;
+                boolean hovered = mouseX >= left && mouseX < right && mouseY >= y && mouseY < y + rowHeight - 2;
+                graphics.fill(left, y, right, y + rowHeight - 2, hovered ? UiTheme.control() : UiTheme.panel());
+                graphics.fill(left + 6, y + rowHeight - 3, right - 6, y + rowHeight - 2,
+                    Objects.equals(category, entry.category()) ? UiTheme.accent() : UiTheme.border());
+                continue;
+            }
             KeyMapping mapping = mappingAt(i);
             if (mapping == null) continue;
             int y = listTop + i * rowHeight;
@@ -1806,21 +1811,15 @@ public final class KeysetScreen extends Screen {
         }
 
         if (mouseMode && showInput() && mouseDiagram != null) {
-            MouseDiagramRenderer.shell(graphics, mouseDiagram);
-            boolean extraVisible = keyboardButtonKeys.keySet().stream().anyMatch(button -> button.visible
-                && button instanceof FlatButton flat && flat.mouseControl != null
-                && flat.mouseControl.ordinal() >= Control.EXTRA6.ordinal());
-            if (extraVisible) {
-                Rect label = mouseDiagram.extraLabel();
-                drawText(graphics, Component.translatable("keyset.mouse_extra"), label.x(), label.y(),
-                    label.width(), UiTheme.muted());
-            }
+            MouseDiagramRenderer.shell(graphics, mouseDiagram, mouseArtwork);
         }
         if (!compact && showInput()) {
             int legendY = summaryY - 16;
-            graphics.fill(sidebarX + 16, legendY + 2, sidebarX + 20, legendY + 6, UiTheme.accent());
+            graphics.fill(sidebarX + 16, legendY + 2, sidebarX + 20, legendY + 6,
+                UiTheme.keyColors(true, false, false).edge());
             graphics.text(font, Component.translatable("keyset.legend_assigned"), sidebarX + 26, legendY, UiTheme.muted(), false);
-            graphics.fill(sidebarX + 140, legendY + 2, sidebarX + 144, legendY + 6, UiTheme.red());
+            graphics.fill(sidebarX + 140, legendY + 2, sidebarX + 144, legendY + 6,
+                UiTheme.keyColors(false, true, false).edge());
             graphics.text(font, Component.translatable("keyset.legend_conflict"), sidebarX + 150, legendY, UiTheme.muted(), false);
         }
         if (!singlePane) {
@@ -1835,8 +1834,8 @@ public final class KeysetScreen extends Screen {
                 sidebarWidth - 212, UiTheme.text());
         }
         }
-        int sidebarItemCount = modFilterMode ? mods.size() : categories.size();
-        int sidebarVisibleCount = modFilterMode ? Math.max(1, categoryButtons.size() / 2) : categoryButtons.size();
+        int sidebarItemCount = modFilterMode ? searchedMods.size() : searchedCategories.size();
+        int sidebarVisibleCount = Math.max(1, categoryButtons.size());
         int sidebarScroll = modFilterMode ? modScroll : categoryScroll;
         if (showCategories() && sidebarItemCount > sidebarVisibleCount && !categoryButtons.isEmpty()) {
             graphics.fill(sidebarX + sidebarWidth - 5, categoryListTop, sidebarX + sidebarWidth - 3, categoryListBottom, UiTheme.border());
@@ -1849,6 +1848,23 @@ public final class KeysetScreen extends Screen {
         if (!singlePane) drawText(graphics, footer, sidebarX + 2, height - 31, sidebarWidth - 4,
             statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        if (showCategories()) {
+            int visibleItems = modFilterMode ? searchedMods.size() : searchedCategories.size();
+            if (visibleItems == 0) {
+                drawText(graphics, Component.translatable("keyset.sidebar_empty"), sidebarX + 14,
+                    categoryListTop + 4, sidebarWidth - 28, UiTheme.muted());
+            }
+            for (Map.Entry<Button, Integer> entry : sidebarButtonCounts.entrySet()) {
+                Button button = entry.getKey();
+                if (!button.visible) continue;
+                String count = Integer.toString(entry.getValue());
+                int countX = button.getX() + button.getWidth() - 6 - font.width(count);
+                int countY = button.getY() + (button.getHeight() - font.lineHeight) / 2;
+                int color = button instanceof FlatButton flat && flat.visualState == VisualState.SELECTED
+                    ? UiTheme.accentText() : UiTheme.muted();
+                graphics.text(font, count, countX, countY, color, false);
+            }
+        }
     }
 
     @Override
@@ -1951,7 +1967,8 @@ public final class KeysetScreen extends Screen {
 
     private boolean isNavigationAt(double x, double y) {
         if (compactTabs.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y))) return true;
-        if (searchBox.isMouseOver(x, y) || conflictsButton.isMouseOver(x, y) || favoritesButton.isMouseOver(x, y)
+        if (searchBox.isMouseOver(x, y) || conflictsButton.isMouseOver(x, y)
+            || unboundButton.isMouseOver(x, y) || (sidebarSearchBox.visible && sidebarSearchBox.isMouseOver(x, y))
             || allCategoryButton.isMouseOver(x, y) || categoryFilterButton.isMouseOver(x, y)
             || modFilterButton.isMouseOver(x, y) || profileCycleButton.isMouseOver(x, y)
             || newProfileButton.isMouseOver(x, y) || renameProfileButton.isMouseOver(x, y)
@@ -1959,7 +1976,6 @@ public final class KeysetScreen extends Screen {
             || visibilityButton.isMouseOver(x, y)) return true;
         if (rowSectionButtons.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y))) return true;
         if (rowSectionHideButtons.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y))) return true;
-        if (rowFavoriteButtons.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y))) return true;
         if (rowConflictButtons.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y))) return true;
         if (filterChipButtons.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y))) return true;
         return categoryButtons.stream().anyMatch(button -> button.visible && button.isMouseOver(x, y));
@@ -1985,10 +2001,10 @@ public final class KeysetScreen extends Screen {
         if (target == EditorViewport.ScrollTarget.FILTERS) {
             if (modFilterMode) {
                 modScroll = clampScroll(modScroll - (int) Math.signum(scrollY) * 2,
-                    mods.size(), Math.max(1, categoryButtons.size() / 2));
+                    searchedMods.size(), Math.max(1, categoryButtons.size()));
             } else {
                 categoryScroll = clampScroll(categoryScroll - (int) Math.signum(scrollY) * 2,
-                    categories.size(), categoryButtons.size());
+                    searchedCategories.size(), Math.max(1, categoryButtons.size()));
             }
             refreshCategoryButtons();
             return true;
@@ -2070,6 +2086,12 @@ public final class KeysetScreen extends Screen {
     @Override
     public boolean charTyped(CharacterEvent event) {
         return super.charTyped(event);
+    }
+
+    @Override
+    public void removed() {
+        mouseArtwork.close();
+        super.removed();
     }
 
     @Override
@@ -2181,45 +2203,57 @@ public final class KeysetScreen extends Screen {
     }
 
     private enum VisualState { NORMAL, ASSIGNED, SELECTED, CONFLICT }
-    private enum ButtonStyle { ACTION, PRIMARY, TAB, KEYCAP, ROW, SECTION, BINDING, QUIET }
+    private enum ButtonStyle { ACTION, PRIMARY, TAB, KEYCAP, ROW, SECTION, SECTION_ACTION, BINDING, QUIET }
 
     private static final class FlatButton extends Button {
         private VisualState visualState = VisualState.NORMAL;
         private ButtonStyle style = ButtonStyle.ACTION;
         private boolean centered = true;
         private Control mouseControl;
+        private MouseDiagramLayout mouseLayout;
+        private MouseTextureCache mouseArtwork;
+        private boolean freeKey, assignedKey, inputConflict;
+        private boolean inactiveSection;
+        private String keyboardInput;
 
         private FlatButton(int x, int y, int width, int height, Component message, OnPress onPress) {
             super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
         }
 
         @Override
+        public boolean isMouseOver(double x, double y) {
+            if (mouseControl != null && mouseLayout != null) {
+                return visible && active && mouseLayout.hitTest(mouseControl, x, y);
+            }
+            return super.isMouseOver(x, y);
+        }
+
+        @Override
         protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
             boolean hover = isHoveredOrFocused() && active;
             boolean selected = visualState == VisualState.SELECTED;
-            boolean conflict = visualState == VisualState.CONFLICT;
+            boolean conflict = visualState == VisualState.CONFLICT || inputConflict;
             int color = !active ? 0x70FFFFFF : conflict ? UiTheme.red()
                 : selected && (style == ButtonStyle.TAB || style == ButtonStyle.QUIET) ? UiTheme.accentText() : UiTheme.text();
             int x = getX(), y = getY(), w = getWidth(), h = getHeight();
             if (mouseControl != null) {
+                isHovered = isHovered && isMouseOver(mouseX, mouseY);
+                hover = active && (isHovered || isFocused());
                 MouseDiagramRenderer.button(graphics, Minecraft.getInstance().font, getMessage(), mouseControl,
-                    new Rect(x, y, w, h), new State(hover, selected, visualState == VisualState.ASSIGNED, conflict, isFocused()));
+                    new Rect(x, y, w, h), new State(hover, selected, assignedKey,
+                        conflict, isFocused(), freeKey), mouseArtwork);
                 return;
             }
             if (style == ButtonStyle.KEYCAP) {
-                rounded(graphics, x, y + 2, w, h - 2, UiTheme.keyShadow());
-                rounded(graphics, x, y, w, h - 3, selected ? UiTheme.accent() : conflict ? 0xFF865858 : UiTheme.keyEdge());
-                rounded(graphics, x + 1, y + 1, w - 2, h - 5, selected ? UiTheme.selected() : hover ? UiTheme.hover() : UiTheme.keyFace());
-                if (visualState != VisualState.NORMAL) {
-                    int stateColor = conflict ? UiTheme.red() : UiTheme.accent();
-                    graphics.fill(x + 3, y + h - 4, x + w - 3, y + h - 3, stateColor);
-                }
+                var state = new KeycapPainter.State(hover, selected, assignedKey, conflict, isFocused(), freeKey);
+                KeycapPainter.draw(graphics::fill, x, y, w, h, UiTheme.currentPalette(), state);
+                color = KeycapPainter.labelColor(UiTheme.currentPalette(), state);
             } else if (style == ButtonStyle.ROW) {
                 // The screen highlights the whole action row, including its controls.
-            } else if (style == ButtonStyle.SECTION) {
-                graphics.fill(x, y, x + w, y + h, hover ? UiTheme.control() : UiTheme.panel());
-                graphics.fill(x + 6, y + h - 1, x + w - 6, y + h, selected ? UiTheme.accent() : UiTheme.border());
+            } else if (style == ButtonStyle.SECTION || style == ButtonStyle.SECTION_ACTION) {
+                // One background and underline span the title and both section controls.
                 color = selected ? UiTheme.accentText() : hover ? UiTheme.text() : UiTheme.muted();
+                if (inactiveSection) color = (UiTheme.muted() & 0xFFFFFF) | 0x88000000;
             } else {
                 int fill = selected ? UiTheme.selected() : hover ? UiTheme.hover() : UiTheme.control();
                 if (style == ButtonStyle.BINDING && !selected) {
@@ -2239,43 +2273,28 @@ public final class KeysetScreen extends Screen {
             }
             if (active && isFocused()) graphics.outline(x, y, w, h, UiTheme.text());
             Font font = Minecraft.getInstance().font;
-            int inset = style == ButtonStyle.KEYCAP ? 2
-                : style == ButtonStyle.SECTION ? 18 : centered ? 8 : 12;
-            int available = Math.max(1, w - inset);
             String label = getMessage().getString();
-            if ((style == ButtonStyle.KEYCAP)
-                    && (font.width(label) > available || font.lineHeight > h - 3)) {
-                float scale = Math.min(available / (float) Math.max(1, font.width(label)),
-                    Math.max(1, h - 3) / (float) font.lineHeight);
-                graphics.pose().pushMatrix();
-                graphics.pose().translate(x + (w - font.width(label) * scale) / 2,
-                        y + (h - font.lineHeight * scale) / 2 - 1);
-                graphics.pose().scale(scale, scale);
-                graphics.text(font, label, 0, 0, color, false);
-                graphics.pose().popMatrix();
+            if (style == ButtonStyle.KEYCAP) {
+                KeycapRenderer.drawKey(graphics, font, keyboardInput, label,
+                    KeycapPainter.faceBounds(x, y, w, h), color, 0.25f, KeysetClient.appearance().keyboardPresentation());
                 return;
             }
+            int inset = style == ButtonStyle.SECTION ? 18 : centered ? 8 : 12;
+            int available = Math.max(1, w - inset);
             if (font.width(label) > available) {
-                String tail = style == ButtonStyle.KEYCAP ? "" : "…";
-                label = font.plainSubstrByWidth(label, Math.max(1, available - font.width(tail))) + tail;
+                label = font.plainSubstrByWidth(label, Math.max(1, available - font.width("…"))) + "…";
             }
             int textX = centered ? x + (w - font.width(label)) / 2
                 : x + (style == ButtonStyle.SECTION ? 10 : 6);
-            int textY = y + (h - font.lineHeight) / 2 - (style == ButtonStyle.KEYCAP ? 1 : 0);
+            int textY = y + (h - font.lineHeight) / 2;
             graphics.text(font, label, textX, textY, color, false);
         }
     }
 
-    private record VirtualKey(int code, String label, boolean mouse, float width) {
-        private VirtualKey(int code, String label, boolean mouse) {
-            this(code, label, mouse, 1);
-        }
-    }
+    private record VirtualKey(int code, String label, boolean mouse) {}
 
-    private record KeyboardRow(List<VirtualKey> main, List<VirtualKey> navigation, float mainOffset) {}
-
-    private record FilterState(KeyMapping.Category category, String modFilter, boolean conflictsOnly, boolean favoritesOnly,
-                               String query, String key, int collapseRevision) {}
+    private record FilterState(KeyMapping.Category category, String modFilter, boolean conflictsOnly,
+                               boolean unboundOnly, String query, String key, int collapseRevision) {}
     private record FilterChip(int index, Component label, Component tooltip) {}
     private record ActionListEntry(KeyMapping mapping, KeyMapping.Category category, int count) {
         private boolean isSection() { return mapping == null; }

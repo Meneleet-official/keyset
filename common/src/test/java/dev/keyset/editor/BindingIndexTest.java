@@ -9,6 +9,37 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class BindingIndexTest {
     @Test
+    void freePhysicalInputsIncludeGenericModifiersAndHiddenAssignments() {
+        Action hidden = action("key.keyboard.x", true, "game");
+        Action visible = action("key.mouse.4", false, "game");
+        Action command = new Action(new Binding("key.keyboard.c", false, false, false, true), "game");
+        var actual = new BindingIndex<>(List.of(hidden, visible, command), Action::binding, (a, b) -> true);
+        var diagram = new BindingIndex<>(List.of(visible), actual::binding, (a, b) -> true);
+        assertTrue(actual.forInput("key.keyboard.z").isEmpty(), "An unused input can be highlighted as free");
+        assertTrue(diagram.forKey("key.keyboard.x").isEmpty(), "Hidden-only inputs remain neutral");
+        assertFalse(actual.forInput("key.keyboard.x").isEmpty(), "Hidden inputs are not free");
+        assertEquals(List.of(hidden), actual.forInput("key.keyboard.left.control"));
+        assertEquals(List.of(hidden), actual.forInput("key.keyboard.right.control"));
+        assertEquals(List.of(command), actual.forInput("key.keyboard.left.win"));
+        assertFalse(actual.forInput("key.keyboard.right.win").isEmpty());
+        assertEquals(List.of(visible), diagram.forKey("key.mouse.4"));
+    }
+
+    @Test
+    void physicalInputIndexCountsEachActionOnceAndDoesNotInventModifiersForUnboundKeys() {
+        Action duplicate = new Action(new Binding("key.keyboard.left.control", true, true, true, true,
+            List.of("key.keyboard.c", "key.keyboard.right.control")), "game");
+        Action unbound = action("key.keyboard.unknown", true, "game");
+        var index = new BindingIndex<>(List.of(duplicate, unbound), Action::binding, (a, b) -> true);
+        assertEquals(List.of(duplicate), index.forInput("key.keyboard.left.control"));
+        assertEquals(List.of(duplicate), index.forInput("key.keyboard.right.control"));
+        assertEquals(List.of(duplicate), index.forInput("key.keyboard.left.shift"));
+        assertEquals(List.of(duplicate), index.forInput("key.keyboard.right.alt"));
+        assertTrue(index.forInput("key.keyboard.unknown").isEmpty());
+        assertThrows(UnsupportedOperationException.class, () -> index.forInput("key.keyboard.c").clear());
+    }
+
+    @Test
     void hidingASectionChangesTheDiagramWithoutRemovingBindingsOrActualConflicts() {
         Action shown = action("key.keyboard.x", false, "game");
         Action hidden = action("key.keyboard.x", false, "game");

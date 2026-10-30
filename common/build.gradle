@@ -11,8 +11,11 @@ sourceSets.main.resources {
 // Validate shipped translations without putting client assets in the pure Java library.
 sourceSets.test.resources {
     srcDir 'src/client/resources'
+    srcDir '../resourcepacks/Keyset-Theme-Example'
     include 'assets/keyset/lang/**'
     include 'assets/keyset/localization_manifest.json'
+    include 'assets/keyset/themes/**'
+    include 'pack.mcmeta'
 }
 dependencies {
     implementation 'com.google.code.gson:gson:2.13.2'

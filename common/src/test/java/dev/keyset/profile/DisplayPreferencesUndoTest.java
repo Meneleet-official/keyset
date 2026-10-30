@@ -11,13 +11,18 @@ class DisplayPreferencesUndoTest {
     @TempDir Path directory;
 
     @Test
-    void undoRestoresFavoriteStateWhileKeepingLaterPersonalizationAndHiddenSections() throws Exception {
+    void undoRestoresProfileRoutesWhileKeepingLaterPersonalizationAndHiddenSections() throws Exception {
         Path file = directory.resolve("preferences.properties");
         ClientPreferences preferences = new ClientPreferences(file);
         preferences.load();
+        String context = "server:current";
+        String originalProfile = "00000000-0000-0000-0000-000000000001";
+        String attemptedProfile = "00000000-0000-0000-0000-000000000002";
+        preferences.toggleRoute(context, originalProfile);
         ClientPreferences.State undoTarget = preferences.checkpoint();
-        preferences.toggleFavorite("key.jump");
-        UiAppearance appearance = new UiAppearance(80, 32, true, 0x78BDF2, 0x101A2C, 70);
+        preferences.toggleRoute(context, attemptedProfile);
+        UiAppearance appearance = new UiAppearance(80, 32, true, 0x78BDF2, 0x101A2C, 70,
+                0x304050, 0xD0A060, 0x506070);
         preferences.setAppearance(appearance);
         preferences.setSidebarRatio(0.6);
         preferences.setCategoryHidden("example:tools", true);
@@ -28,7 +33,7 @@ class DisplayPreferencesUndoTest {
         preferences.save();
         ClientPreferences reloaded = new ClientPreferences(file);
         reloaded.load();
-        assertFalse(reloaded.isFavorite("key.jump"));
+        assertEquals(originalProfile, reloaded.profileFor(context));
         assertEquals(appearance, reloaded.appearance());
         assertEquals(0.6, reloaded.sidebarRatio());
         assertTrue(reloaded.isCategoryHidden("example:tools"));
@@ -37,12 +42,12 @@ class DisplayPreferencesUndoTest {
 
     @Test
     void displayCopyRetainsTheUndoTargetsProfileRoutes() {
-        var target = new ClientPreferences.State(Set.of("key.jump"), Map.of("world", "profile"));
-        var current = new ClientPreferences.State(Set.of(), Map.of(), 0.6,
-            new UiAppearance(60, 18, true, 0x123456, 0x202020, 80), Set.of("mod:tools"), Set.of("mod"));
+        var target = new ClientPreferences.State(Map.of("world", "profile"));
+        var current = new ClientPreferences.State(Map.of(), 0.6,
+            new UiAppearance(60, 18, true, 0x123456, 0x202020, 80,
+                    0x405060, 0xD1B080, 0x607080), Set.of("mod:tools"), Set.of("mod"));
         var restored = target.withDisplayFrom(current);
         assertEquals(target.routes(), restored.routes());
-        assertEquals(target.favorites(), restored.favorites());
         assertEquals(current.appearance(), restored.appearance());
         assertEquals(current.hiddenCategories(), restored.hiddenCategories());
     }

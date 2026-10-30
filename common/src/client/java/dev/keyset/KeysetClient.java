@@ -2,6 +2,7 @@ package dev.keyset;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.keyset.client.KeysetScreen;
+import dev.keyset.client.ResourcePackThemes;
 import dev.keyset.compat.ExternalHotkeys;
 import dev.keyset.compat.ModOrigins;
 import dev.keyset.editor.BindingIndex;
@@ -16,6 +17,8 @@ import dev.keyset.profile.ProfileStore;
 import dev.keyset.profile.ProfilePaths;
 import dev.keyset.profile.ProfileStorageMode;
 import dev.keyset.profile.SharedSettingsConflictException;
+import dev.keyset.profile.ThemeStore;
+import dev.keyset.profile.SavedTheme;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -279,13 +282,43 @@ public final class KeysetClient {
 
     public static UiAppearance appearance() { ensureLoaded(); return preferences.appearance(); }
 
+    public static ThemeStore themeStore() {
+        ensureLoaded();
+        return new ThemeStore(sharedSettingsDirectory().resolve("themes.json"));
+    }
+
+    public static Path themeTransferDirectory() {
+        ensureLoaded();
+        return sharedSettingsDirectory().resolve("theme-transfer");
+    }
+
     public static void setAppearance(UiAppearance appearance) throws IOException {
-        editDisplayPreferences(() -> preferences.setAppearance(appearance));
+        editDisplayPreferences(() -> {
+            if (!ResourcePackThemes.samePalette(preferences.appearance(), appearance)) preferences.setResourceTheme(null);
+            preferences.setAppearance(appearance);
+        });
+    }
+
+    public static String resourceThemeId() { ensureLoaded(); return preferences.resourceTheme(); }
+
+    public static void applyResourceTheme(String resourceId, SavedTheme theme) throws IOException {
+        editDisplayPreferences(() -> {
+            preferences.setAppearance(theme.applyTo(preferences.appearance()));
+            preferences.setResourceTheme(resourceId);
+        });
+    }
+
+    public static void applySavedTheme(SavedTheme theme) throws IOException {
+        editDisplayPreferences(() -> {
+            preferences.setAppearance(theme.applyTo(preferences.appearance()));
+            preferences.setResourceTheme(null);
+        });
     }
 
     public static void resetAppearance() throws IOException {
         editDisplayPreferences(() -> {
             preferences.setAppearance(UiAppearance.defaults());
+            preferences.setResourceTheme(null);
             preferences.setSidebarRatio(0.52);
         });
     }
@@ -360,12 +393,16 @@ public final class KeysetClient {
     public static Component displayBinding(Binding value) {
         if (value == null || value.keys().isEmpty()) return Component.translatable("keyset.compare_unbound");
         KeyboardLayouts.Layout layout = KeyboardLayouts.forLanguage(Minecraft.getInstance().getLanguageManager().getSelected());
-        String prefix = (value.ctrl() ? "Ctrl + " : "") + (value.shift() ? "Shift + " : "")
-                + (value.alt() ? "Alt + " : "") + (value.command() ? "Cmd + " : "");
+        String prefix = modifierPrefix(value);
         Component result = Component.literal(prefix);
         for (String key : value.keys()) {
             if (!key.equals(value.key())) result = result.copy().append(" + ");
             String physical = key.startsWith("key.keyboard.") ? key.substring("key.keyboard.".length()) : "";
+            String override = dev.keyset.editor.KeyboardKeyNames.translationKey(key, appearance().keyboardPresentation().platform());
+            if (override != null) {
+                result = result.copy().append(Component.translatable(override));
+                continue;
+            }
             String fallback = InputConstants.getKey(key).getDisplayName().getString();
             result = result.copy().append(layout.label(physical, fallback));
         }
@@ -417,29 +454,6 @@ public final class KeysetClient {
         }
     }
     public static boolean canUndo() { return undoState != null; }
-    public static boolean isFavorite(KeyMapping mapping) {
-        ensureLoaded();
-        return preferences != null && preferences.isFavorite(mapping.getName());
-    }
-
-    public static void toggleFavorite(KeyMapping mapping) throws IOException {
-        try {
-            ensureLoaded();
-            UndoState before = captureUndo();
-            preferences.toggleFavorite(mapping.getName());
-            try {
-                persistPreferences();
-                rememberUndo(before);
-                revision++;
-            } catch (IOException | RuntimeException failure) {
-                rollbackOperation(before, failure);
-                throw failure;
-            }
-        } finally {
-            clearPendingOperation();
-        }
-    }
-
     public static CurrentContext currentContext() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return null;
@@ -501,11 +515,13 @@ public final class KeysetClient {
     public static boolean isDefault(KeyMapping mapping) { return binding(mapping).equals(defaults(mapping)); }
 
     public static Component bindingLabel(Binding binding) {
-        String prefix = (binding.ctrl() ? "Ctrl + " : "") + (binding.shift() ? "Shift + " : "")
-                + (binding.alt() ? "Alt + " : "") + (binding.command() ? "Cmd + " : "");
-        var label = Component.literal(prefix).append(InputConstants.getKey(binding.key()).getDisplayName());
-        for (String key : binding.extraKeys()) label.append(Component.literal(" + ").append(InputConstants.getKey(key).getDisplayName()));
-        return label;
+        return displayBinding(binding);
+    }
+
+    public static String modifierPrefix(Binding binding) {
+        boolean mac = appearance().keyboardPresentation().platform().resolved() == dev.keyset.profile.KeyboardPlatform.MAC;
+        return (binding.ctrl() ? "Ctrl + " : "") + (binding.shift() ? "Shift + " : "")
+            + (binding.alt() ? (mac ? "Option + " : "Alt + ") : "") + (binding.command() ? "Cmd + " : "");
     }
 
     public static boolean conflicts(KeyMapping mapping) {
@@ -900,6 +916,39 @@ public final class KeysetClient {
         }
     }
 
+    /** Clears the entire category as one saved operation, including actions outside the current filter. */
+    public static void unbindCategory(String categoryId, long expectedRevision) throws IOException {
+        try {
+            ensureLoaded();
+            UndoState before = captureUndo();
+            if (revision != expectedRevision) throw new SharedSettingsConflictException("Bindings changed while confirming category removal");
+            var targets = mappings().stream().filter(mapping -> mapping.getCategory().id().toString().equals(categoryId)).toList();
+            if (targets.isEmpty()) return;
+            try {
+                createBackup("unbind-category");
+                for (KeyMapping mapping : targets) assign(mapping, new Binding(InputConstants.UNKNOWN.getName(), false, false, false));
+                KeyMapping.resetMapping();
+                save();
+                rememberUndo(before);
+                lastAssignment = null;
+            } catch (IOException | RuntimeException failure) {
+                rollbackOperation(before, failure);
+                throw failure;
+            }
+        } finally {
+            clearPendingOperation();
+        }
+    }
+
+    public static void setSectionHidden(KeyMapping.Category category, boolean hidden) throws IOException {
+        editDisplayPreferences(() -> {
+            preferences.setCategoryHidden(category.id().toString(), hidden);
+            if (!hidden) for (KeyMapping mapping : mappings()) {
+                if (mapping.getCategory().equals(category)) preferences.setModHidden(owner(mapping).id(), false);
+            }
+        });
+    }
+
     public static void createProfile(String name) throws IOException {
         try {
             UndoState before = captureUndo();
@@ -1087,6 +1136,7 @@ public final class KeysetClient {
             }
         }
         // Releasing a modifier before the primary key must not leave a chord held.
+        ResourcePackThemes.tick();
         for (var entry : chords.entrySet()) {
             KeyMapping mapping = KeyMapping.get(entry.getKey());
             if (mapping == null) continue;

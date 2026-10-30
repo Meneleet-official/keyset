@@ -26,7 +26,20 @@ class LocalizationResourcesTest {
         }
         JsonObject locales = manifest.getAsJsonObject("locales");
         assertEquals(143, locales.size(), "Minecraft 26.3 locale catalog including en_us");
-        assertTrue(manifest.getAsJsonObject("unavailableProviders").isEmpty());
+        assertNotNull(manifest.getAsJsonObject("unavailableProviders"));
+        for (var failure : manifest.getAsJsonObject("unavailableProviders").entrySet()) {
+            assertFalse(failure.getValue().getAsString().isBlank(), "Missing provider failure detail");
+        }
+        JsonObject fallbacks = manifest.getAsJsonObject("fallbackKeysByLocale");
+        assertNotNull(fallbacks, "New English fallback strings must be declared explicitly");
+        assertFalse(fallbacks.has("en_us"));
+        assertFalse(fallbacks.has("ru_ru"));
+        for (var fallback : fallbacks.entrySet()) {
+            assertTrue(locales.has(fallback.getKey()), "Unknown fallback locale " + fallback.getKey());
+            for (var key : fallback.getValue().getAsJsonArray()) {
+                assertTrue(english.containsKey(key.getAsString()), "Unknown fallback key " + key);
+            }
+        }
         for (String id : locales.keySet()) {
             Map<String, String> translated = locale(id);
             assertEquals(english.keySet(), translated.keySet(), id + " translation keys");
