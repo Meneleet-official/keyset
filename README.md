@@ -14,7 +14,7 @@ Client-side only. Fabric and NeoForge.
 | 1.21.11 | 21 | Fabric, NeoForge | yes |
 | 1.21.1 | 21 | Fabric, NeoForge | yes |
 | 1.20.1 | 17 | Fabric, NeoForge (legacy Forge fork) | yes |
-| 26.3 | 25 | Fabric, NeoForge | not in 1.2.1 |
+| 26.3 | 25 | Fabric, NeoForge | yes |
 
 Each Minecraft version has its own JAR. Download the one that matches your exact game version and loader. Ports are built from the same sources with small per-version patches; see [`ports/README.md`](ports/README.md).
 
