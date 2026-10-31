@@ -1,0 +1,51 @@
+--- a/dev/keyset/client/KeycapRenderer.java
++++ b/dev/keyset/client/KeycapRenderer.java
+@@ -6,7 +6,7 @@
+ import dev.keyset.profile.KeyboardPresentation;
+ import dev.keyset.profile.KeyLegendMode;
+ import net.minecraft.client.gui.Font;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ 
+ /** Shared top-face label renderer for the editor keyboard and appearance preview. */
+ public final class KeycapRenderer {
+@@ -20,7 +20,7 @@
+         BitmapGlyphMetrics.reset();
+     }
+ 
+-    public static void drawLabel(GuiGraphicsExtractor graphics, Font font, String label,
++    public static void drawLabel(GuiGraphics graphics, Font font, String label,
+                                  KeycapPainter.Bounds face, int color, float minimumScale) {
+         var bounds = font.prepareText(label, 0, 0, color, false, 0).bounds();
+         if (bounds == null) return;
+@@ -36,18 +36,18 @@
+             graphics.pose().pushMatrix();
+             graphics.pose().translate(placement.x(), placement.y());
+             graphics.pose().scale(placement.scale(), placement.scale());
+-            graphics.text(font, label, 0, 0, color, false);
++            graphics.drawString(font, label, 0, 0, color, false);
+             graphics.pose().popMatrix();
+         });
+     }
+ 
+     /** Physical legends remain independent of translations and font resource packs. */
+-    public static void drawKey(GuiGraphicsExtractor graphics, Font font, String input, String label,
++    public static void drawKey(GuiGraphics graphics, Font font, String input, String label,
+                                KeycapPainter.Bounds face, int color, float minimumScale) {
+         drawKey(graphics, font, input, label, face, color, minimumScale, KeyboardPresentation.defaults());
+     }
+ 
+-    public static void drawKey(GuiGraphicsExtractor graphics, Font font, String input, String label,
++    public static void drawKey(GuiGraphics graphics, Font font, String input, String label,
+                                KeycapPainter.Bounds face, int color, float minimumScale,
+                                KeyboardPresentation presentation) {
+         var symbol = KeycapSymbols.forInput(input, presentation.platform());
+@@ -75,7 +75,7 @@
+                 graphics.pose().translate(
+                     (stacked ? (groupWidth - text.width()) / 2f : icon.width() + 2) - text.left(),
+                     (stacked ? icon.height() + 2 : (groupHeight - text.height()) / 2f) - text.top());
+-                graphics.text(font, label, 0, 0, color, false);
++                graphics.drawString(font, label, 0, 0, color, false);
+                 graphics.pose().popMatrix();
+             }
+             graphics.pose().popMatrix();

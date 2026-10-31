@@ -1,0 +1,9 @@
+--- a/assets/keyset/localization_manifest.json
++++ b/assets/keyset/localization_manifest.json
+@@ -1,5 +1,5 @@
+ {
+-  "minecraft": "26.3",
++  "minecraft": "1.21.11",
+   "release": "1.2.0",
+   "sourceHash": "2d9ca8f9039c4776210e085f3bd39d9026bd6518c81396c06dd704c38917eb36",
+   "locales": {

@@ -1,0 +1,53 @@
+--- a/dev/keyset/client/HiddenSectionsScreen.java
++++ b/dev/keyset/client/HiddenSectionsScreen.java
+@@ -11,7 +11,7 @@
+ import java.util.Locale;
+ import java.util.Map;
+ import net.minecraft.client.KeyMapping;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.EditBox;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -113,8 +113,8 @@
+             ModGroup previousMod = mods.get(owner.id());
+             mods.put(owner.id(), new ModGroup(owner.id(), owner.name(), previousMod == null ? 1 : previousMod.count() + 1));
+ 
+-            KeyMapping.Category category = mapping.getCategory();
+-            String categoryId = category.id().toString();
++            String category = mapping.getCategory();
++            String categoryId = category;
+             CategoryGroup previousCategory = categories.get(categoryId);
+             categories.put(categoryId, new CategoryGroup(categoryId, KeysetClient.categoryLabel(category),
+                     previousCategory == null ? 1 : previousCategory.count() + 1));
+@@ -235,7 +235,14 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        // Vanilla 1.21 draws a blurred world here; the screen paints its own backdrop in render().
++    }
++
++    @Override
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        if (minecraft.level == null) { renderPanorama(graphics, partialTick); renderMenuBackground(graphics); }
++        else renderTransparentBackground(graphics); // vanilla dim over the world
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 10, innerWidth, UiTheme.text());
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.visibility_explanation"),
+@@ -275,12 +282,12 @@
+         if (error != null) {
+             KeysetWidgets.drawText(graphics, font, error, innerX, footerY - 14, innerWidth, UiTheme.red());
+         }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++        super.render(graphics, mouseX, mouseY, partialTick);
+     }
+ 
+     @Override
+     public void onClose() {
+-        minecraft.setScreenAndShow(parent);
++        minecraft.setScreen(parent);
+     }
+ 
+     private enum Tab { MODS, CATEGORIES }

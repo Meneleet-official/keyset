@@ -1,0 +1,51 @@
+--- a/dev/keyset/client/KeyboardStyleScreen.java
++++ b/dev/keyset/client/KeyboardStyleScreen.java
+@@ -13,7 +13,7 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ import net.minecraft.client.Minecraft;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.Tooltip;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -227,7 +227,7 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         int titleWidth = Math.max(1, right - left - 96);
+         KeysetWidgets.drawText(graphics, font, title, left, top + 6, titleWidth,
+@@ -252,9 +252,9 @@
+                 KeysetClient.appearance().keyboardPresentation());
+         }
+         if (error != null) {
+-            graphics.text(font, "!", right - 93, top + 6, UiTheme.red(), false);
+-        }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++            graphics.drawString(font, "!", right - 93, top + 6, UiTheme.red(), false);
++        }
++        super.render(graphics, mouseX, mouseY, partialTick);
+     }
+ 
+     @Override
+@@ -284,7 +284,7 @@
+         private void setSelected(boolean selected) { this.selected = selected; }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             boolean hovered = active && isHoveredOrFocused();
+             KeycapPainter.State state = new KeycapPainter.State(hovered, selected, false, false,
+                 active && isFocused(), false);
+@@ -308,7 +308,7 @@
+         private void setSelectedKey(KeyboardDiagramLayout.Cell cell) { selectedCell = cell; }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             // The selected key is rendered by the screen so the mode preview always matches the current palette.
+         }
+     }

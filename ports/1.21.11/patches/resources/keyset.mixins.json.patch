@@ -1,0 +1,11 @@
+--- a/keyset.mixins.json
++++ b/keyset.mixins.json
+@@ -2,7 +2,7 @@
+   "required": true,
+   "minVersion": "0.8",
+   "package": "dev.keyset.mixin",
+-  "compatibilityLevel": "JAVA_25",
++  "compatibilityLevel": "JAVA_21",
+   "client": [
+     "OptionsMixin",
+     "MinecraftMixin",

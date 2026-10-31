@@ -1,0 +1,9 @@
+Tool: built-in ImageGen
+Purpose: background extraction for the Keyset Modrinth cover.
+Input: user-provided screenshot of the Keyset interface.
+Output: keyset-ui-cutout.png
+Final composition: keyset-modrinth-cover-v2.png (Figma, 1600 x 900).
+Logo: vectorized from the user's original 15 x 15 pixel artwork; no generated logo.
+
+Prompt:
+Use case: background-extraction. Edit target: the attached 1920x1008 screenshot of the Keyset Minecraft mod settings interface. Remove ONLY the blurred Minecraft game-world environment (blue sky, clouds, trees, brown terrain) including the environment visible THROUGH the translucent panels. Keep the FULL interface exactly in its original position and dimensions, with the same crisp low-resolution pixel edges: every key, exact keyboard arrangement, every label and action row, tabs, dividers, buttons, scrollbars, profile menu, small top-left logo, footer. Replace translucent panel interiors with flat opaque dark charcoal-green matching the existing UI (#18211e and #101714) so the world no longer shows through them. All gaps outside the interface panels should have genuine alpha transparency, not a checkerboard baked in. Preserve typography and all existing text verbatim, no newly invented text or rearranged elements. Keep pixelated Minecraft font, mint outlines, white text, muted gray labels and coral conflict keys. No new logos, no new icons, no marketing layout. This is careful extraction of the existing game interface, not a redesigned UI. No gradients, no glow, no smoothing, no perspective, no rounded modern cards. Output a clean flat screenshot cutout on transparent background.

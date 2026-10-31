@@ -1,0 +1,268 @@
+--- a/dev/keyset/client/ColorPickerScreen.java
++++ b/dev/keyset/client/ColorPickerScreen.java
+@@ -12,7 +12,7 @@
+ import java.util.Locale;
+ import java.util.function.IntConsumer;
+ import java.util.function.IntFunction;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.AbstractSliderButton;
+ import net.minecraft.client.gui.components.AbstractWidget;
+ import net.minecraft.client.gui.components.EditBox;
+@@ -20,8 +20,6 @@
+ import net.minecraft.client.gui.narration.NarratedElementType;
+ import net.minecraft.client.gui.narration.NarrationElementOutput;
+ import net.minecraft.client.gui.screens.Screen;
+-import net.minecraft.client.input.KeyEvent;
+-import net.minecraft.client.input.MouseButtonEvent;
+ import net.minecraft.network.chat.Component;
+ 
+ /** A local color draft: dragging previews the color, confirmation saves it through the parent. */
+@@ -206,7 +204,7 @@
+     private void confirm() {
+         if (invalidHex) return;
+         onConfirm.accept(selection.rgb());
+-        minecraft.setScreenAndShow(parent);
++        minecraft.setScreen(parent);
+     }
+ 
+     @Override
+@@ -217,11 +215,12 @@
+ 
+     @Override
+     public void onClose() {
+-        minecraft.setScreenAndShow(parent);
++        minecraft.setScreen(parent);
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        renderBackground(graphics); // vanilla backdrop: menu background, or dim over the world
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 11, innerWidth, UiTheme.text());
+         boolean colorsVisible = !pickerLayout.pagedPreview() || !previewPage;
+@@ -238,27 +237,27 @@
+             drawPreview(graphics, rightX, chipsY, previewWidth, chipsHeight, originalColor);
+             int nextX = rightX + previewWidth + previewGap;
+             drawPreview(graphics, nextX, chipsY, rightX + rightWidth - nextX, chipsHeight, selection.rgb());
+-            graphics.text(font, ">", rightX + previewWidth + 3, chipsY + (chipsHeight - font.lineHeight) / 2,
++            graphics.drawString(font, ">", rightX + previewWidth + 3, chipsY + (chipsHeight - font.lineHeight) / 2,
+                     UiTheme.muted(), false);
+             graphics.fill(innerX, hexY, innerX + leftWidth, hexY + 20, UiTheme.widgetSurface(UiTheme.control()));
+-            graphics.outline(innerX, hexY, leftWidth, 20,
++            graphics.renderOutline(innerX, hexY, leftWidth, 20,
+                     invalidHex ? UiTheme.red() : hexBox.isFocused() ? UiTheme.accent() : UiTheme.border());
+-            graphics.text(font, "#", innerX + 5, hexY + 5, UiTheme.muted(), false);
++            graphics.drawString(font, "#", innerX + 5, hexY + 5, UiTheme.muted(), false);
+         }
+         if (invalidHex) {
+             KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.appearance_invalid_hex"),
+                     innerX, footerY - 12, innerWidth, UiTheme.red());
+         }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+-    }
+-
+-    private void drawPreview(GuiGraphicsExtractor graphics, int x, int y, int width, int height, int rgb) {
++        super.render(graphics, mouseX, mouseY, partialTick);
++    }
++
++    private void drawPreview(GuiGraphics graphics, int x, int y, int width, int height, int rgb) {
+         graphics.fill(x, y, x + width, y + height, 0xFF000000 | rgb);
+-        graphics.outline(x, y, width, height, UiTheme.border());
++        graphics.renderOutline(x, y, width, height, UiTheme.border());
+         int foreground = AppearancePalette.contrastRatio(rgb, 0xFFFFFF)
+                 >= AppearancePalette.contrastRatio(rgb, 0) ? 0xFFFFFFFF : 0xFF000000;
+         String value = hex(rgb);
+-        graphics.text(font, value, x + (width - font.width(value)) / 2,
++        graphics.drawString(font, value, x + (width - font.width(value)) / 2,
+                 y + (height - font.lineHeight) / 2, foreground, false);
+     }
+ 
+@@ -277,6 +276,12 @@
+         @Override protected void updateMessage() {}
+         @Override protected void applyValue() { keyboardPan = value; }
+ 
++        private void setPanValue(double value) {
++            this.value = Math.max(0, Math.min(1, value));
++            updateMessage();
++            applyValue();
++        }
++
+         private int thumbWidth() {
+             var area = pickerLayout.preview();
+             var viewport = KeyboardPreviewViewport.forArea(area.width(), area.height() - 24,
+@@ -285,26 +290,25 @@
+         }
+ 
+         @Override
+-        public void onClick(MouseButtonEvent event, boolean doubleClick) {
++        public void onClick(double mouseX, double mouseY) {
+             int thumb = thumbWidth();
+             double start = getX() + (getWidth() - thumb) * value;
+-            dragOffset = event.x() >= start && event.x() < start + thumb ? event.x() - start : thumb / 2.0;
+-            setValue((event.x() - getX() - dragOffset) / Math.max(1, getWidth() - thumb));
+-        }
+-
+-        @Override
+-        protected void onDrag(MouseButtonEvent event, double deltaX, double deltaY) {
+-            setValue((event.x() - getX() - dragOffset) / Math.max(1, getWidth() - thumbWidth()));
+-        }
+-
+-        @Override
+-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++            dragOffset = mouseX >= start && mouseX < start + thumb ? mouseX - start : thumb / 2.0;
++            setPanValue((mouseX - getX() - dragOffset) / Math.max(1, getWidth() - thumb));
++        }
++
++        @Override
++        protected void onDrag(double mouseX, double mouseY, double deltaX, double deltaY) {
++            setPanValue((mouseX - getX() - dragOffset) / Math.max(1, getWidth() - thumbWidth()));
++        }
++
++        @Override
++        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int thumb = thumbWidth();
+             int start = getX() + (int) Math.round((getWidth() - thumb) * value);
+-            graphics.fill(getX(), getY() + 3, getRight(), getY() + 5, UiTheme.border());
+-            graphics.fill(start, getY() + 1, start + thumb, getBottom() - 1,
++            graphics.fill(getX(), getY() + 3, getX() + getWidth(), getY() + 5, UiTheme.border());
++            graphics.fill(start, getY() + 1, start + thumb, getY() + getHeight() - 1,
+                 isHoveredOrFocused() ? UiTheme.accent() : UiTheme.muted());
+-            handleCursor(graphics);
+         }
+     }
+ 
+@@ -314,44 +318,43 @@
+         }
+ 
+         @Override
+-        protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int steps = Math.min(48, getWidth());
+             for (int i = 0; i < steps; i++) {
+                 double saturation = i / (double) Math.max(1, steps - 1);
+                 int top = new ColorSelection(selection.hue(), saturation, 1).rgb();
+                 graphics.fillGradient(getX() + i * getWidth() / steps, getY(),
+-                        getX() + (i + 1) * getWidth() / steps, getBottom(), 0xFF000000 | top, 0xFF000000);
++                        getX() + (i + 1) * getWidth() / steps, getY() + getHeight(), 0xFF000000 | top, 0xFF000000);
+             }
+             int markerX = getX() + (int) Math.round(selection.saturation() * (getWidth() - 1));
+             int markerY = getY() + (int) Math.round((1 - selection.brightness()) * (getHeight() - 1));
+-            graphics.outline(markerX - 3, markerY - 3, 7, 7, 0xFF000000);
+-            graphics.outline(markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
+-            graphics.outline(getX() - 1, getY() - 1, getWidth() + 2, getHeight() + 2,
++            graphics.renderOutline(markerX - 3, markerY - 3, 7, 7, 0xFF000000);
++            graphics.renderOutline(markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
++            graphics.renderOutline(getX() - 1, getY() - 1, getWidth() + 2, getHeight() + 2,
+                     isFocused() ? UiTheme.accent() : UiTheme.border());
+-            handleCursor(graphics);
+-        }
+-
+-        private void selectAt(MouseButtonEvent event) {
++        }
++
++        private void selectAt(double mouseX, double mouseY) {
+             changeSelection(selection.withSaturationAndBrightness(
+-                    (event.x() - getX()) / Math.max(1, getWidth() - 1),
+-                    1 - (event.y() - getY()) / Math.max(1, getHeight() - 1)), true);
+-        }
+-
+-        @Override
+-        public void onClick(MouseButtonEvent event, boolean doubleClick) { selectAt(event); }
+-
+-        @Override
+-        protected void onDrag(MouseButtonEvent event, double dx, double dy) { selectAt(event); }
+-
+-        @Override
+-        public boolean keyPressed(KeyEvent event) {
++                    (mouseX - getX()) / Math.max(1, getWidth() - 1),
++                    1 - (mouseY - getY()) / Math.max(1, getHeight() - 1)), true);
++        }
++
++        @Override
++        public void onClick(double mouseX, double mouseY) { selectAt(mouseX, mouseY); }
++
++        @Override
++        protected void onDrag(double mouseX, double mouseY, double dx, double dy) { selectAt(mouseX, mouseY); }
++
++        @Override
++        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+             double saturation = selection.saturation();
+             double brightness = selection.brightness();
+-            if (event.key() == InputConstants.KEY_LEFT) saturation -= 0.01;
+-            else if (event.key() == InputConstants.KEY_RIGHT) saturation += 0.01;
+-            else if (event.key() == InputConstants.KEY_DOWN) brightness -= 0.01;
+-            else if (event.key() == InputConstants.KEY_UP) brightness += 0.01;
+-            else return super.keyPressed(event);
++            if (keyCode == InputConstants.KEY_LEFT) saturation -= 0.01;
++            else if (keyCode == InputConstants.KEY_RIGHT) saturation += 0.01;
++            else if (keyCode == InputConstants.KEY_DOWN) brightness -= 0.01;
++            else if (keyCode == InputConstants.KEY_UP) brightness += 0.01;
++            else return super.keyPressed(keyCode, scanCode, modifiers);
+             changeSelection(selection.withSaturationAndBrightness(saturation, brightness), true);
+             return true;
+         }
+@@ -378,17 +381,16 @@
+         protected void applyValue() { changeSelection(selection.withHue(Math.min(Math.nextDown(1.0), value)), true); }
+ 
+         @Override
+-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int trackWidth = Math.max(1, getWidth() - 8);
+             int steps = Math.min(60, trackWidth);
+             for (int i = 0; i < steps; i++) {
+                 int rgb = new ColorSelection(i / (double) Math.max(1, steps - 1), 1, 1).rgb();
+                 graphics.fill(getX() + 4 + i * trackWidth / steps, getY() + 2,
+-                        getX() + 4 + (i + 1) * trackWidth / steps, getBottom() - 2, 0xFF000000 | rgb);
++                        getX() + 4 + (i + 1) * trackWidth / steps, getY() + getHeight() - 2, 0xFF000000 | rgb);
+             }
+             drawHandle(graphics, getX() + 4 + (int) Math.round(value * trackWidth), getY() + 1, getHeight() - 2);
+-            if (isFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
+-            handleCursor(graphics);
++            if (isFocused()) graphics.renderOutline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
+         }
+     }
+ 
+@@ -412,28 +414,27 @@
+         protected void applyValue() { changeSelection(selection.withChannel(shift, (int) Math.round(value * 255)), true); }
+ 
+         @Override
+-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+-            graphics.fill(getX(), getY(), getRight(), getBottom(), UiTheme.widgetSurface(UiTheme.control()));
+-            graphics.text(font, label, getX() + 4, getY() + 2, UiTheme.text(), false);
++        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++            graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), UiTheme.widgetSurface(UiTheme.control()));
++            graphics.drawString(font, label, getX() + 4, getY() + 2, UiTheme.text(), false);
+             String number = Integer.toString(selection.channel(shift));
+-            graphics.text(font, number, getRight() - 4 - font.width(number), getY() + 2, UiTheme.text(), false);
++            graphics.drawString(font, number, getX() + getWidth() - 4 - font.width(number), getY() + 2, UiTheme.text(), false);
+             int trackWidth = Math.max(1, getWidth() - 8);
+             int steps = Math.min(32, trackWidth);
+             for (int i = 0; i < steps; i++) {
+                 int channel = (int) Math.round(i * 255.0 / Math.max(1, steps - 1));
+                 int rgb = (selection.rgb() & ~(0xFF << shift)) | (channel << shift);
+-                graphics.fill(getX() + 4 + i * trackWidth / steps, getBottom() - 9,
+-                        getX() + 4 + (i + 1) * trackWidth / steps, getBottom() - 2, 0xFF000000 | rgb);
++                graphics.fill(getX() + 4 + i * trackWidth / steps, getY() + getHeight() - 9,
++                        getX() + 4 + (i + 1) * trackWidth / steps, getY() + getHeight() - 2, 0xFF000000 | rgb);
+             }
+-            drawHandle(graphics, getX() + 4 + (int) Math.round(value * trackWidth), getBottom() - 10, 9);
+-            if (isFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
+-            handleCursor(graphics);
+-        }
+-    }
+-
+-    private static void drawHandle(GuiGraphicsExtractor graphics, int centerX, int y, int height) {
++            drawHandle(graphics, getX() + 4 + (int) Math.round(value * trackWidth), getY() + getHeight() - 10, 9);
++            if (isFocused()) graphics.renderOutline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
++        }
++    }
++
++    private static void drawHandle(GuiGraphics graphics, int centerX, int y, int height) {
+         graphics.fill(centerX - 3, y, centerX + 3, y + height, 0xFF000000);
+-        graphics.outline(centerX - 2, y + 1, 4, Math.max(1, height - 2), 0xFFFFFFFF);
++        graphics.renderOutline(centerX - 2, y + 1, 4, Math.max(1, height - 2), 0xFFFFFFFF);
+     }
+ }
+ 

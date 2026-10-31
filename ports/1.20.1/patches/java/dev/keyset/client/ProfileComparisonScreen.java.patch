@@ -1,0 +1,97 @@
+--- a/dev/keyset/client/ProfileComparisonScreen.java
++++ b/dev/keyset/client/ProfileComparisonScreen.java
+@@ -11,10 +11,9 @@
+ import java.util.List;
+ import java.util.Objects;
+ import java.util.Set;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Tooltip;
+ import net.minecraft.client.gui.screens.Screen;
+-import net.minecraft.client.input.KeyEvent;
+ import net.minecraft.network.chat.Component;
+ 
+ /** Compares a saved source profile with the active target and selectively copies assignments. */
+@@ -287,7 +286,7 @@
+         if (sourceProfile == null || targetProfile == null || selectedActionIds.isEmpty()) return;
+         try {
+             KeysetClient.copyProfileBindings(sourceProfileId, Set.copyOf(selectedActionIds), observedRevision);
+-            minecraft.setScreenAndShow(parent);
++            minecraft.setScreen(parent);
+         } catch (IOException | IllegalArgumentException exception) {
+             statusMessage = KeysetClient.operationError(exception);
+             statusIsError = true;
+@@ -299,16 +298,17 @@
+     }
+ 
+     @Override
+-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+-        super.extractBackground(graphics, mouseX, mouseY, partialTick);
+-    }
+-
+-    @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void renderBackground(GuiGraphics graphics) {
++        super.renderBackground(graphics);
++    }
++
++    @Override
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        renderBackground(graphics); // vanilla backdrop: menu background, or dim over the world
+         if (refreshModelIfChanged()) init();
+ 
+         KeysetWidgets.drawCard(graphics, panelX, 48, panelWidth, Math.max(1, height - 96));
+-        graphics.text(font, Component.translatable("keyset.compare_title"), 18, 17, 0xFFFFFFFF);
++        graphics.drawString(font, Component.translatable("keyset.compare_title"), 18, 17, 0xFFFFFFFF);
+         int summaryX = Math.max(150, width - 225);
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_summary",
+             differences.size(), selectedActionIds.size()), summaryX, 20,
+@@ -356,34 +356,34 @@
+             KeysetWidgets.drawText(graphics, font, statusMessage, 18, height - 27,
+                 Math.max(1, applyButton.getX() - 24), statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
+         }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+-    }
+-
+-    @Override
+-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
++        super.render(graphics, mouseX, mouseY, partialTick);
++    }
++
++    @Override
++    public boolean mouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+         if (mouseX >= panelX && mouseX <= panelX + panelWidth && mouseY >= listTop && mouseY <= listBottom) {
+-            int next = clampScroll(scroll - (int) Math.signum(scrollY) * 2, differences.size(), visibleRows);
++            int next = clampScroll(scroll - (int) Math.signum(scrollDelta) * 2, differences.size(), visibleRows);
+             if (next != scroll) {
+                 scroll = next;
+                 refreshRows();
+             }
+             return true;
+         }
+-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+-    }
+-
+-    @Override
+-    public boolean keyPressed(KeyEvent event) {
+-        if (event.key() == InputConstants.KEY_ESCAPE) {
++        return super.mouseScrolled(mouseX, mouseY, scrollDelta);
++    }
++
++    @Override
++    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
++        if (keyCode == InputConstants.KEY_ESCAPE) {
+             onClose();
+             return true;
+         }
+-        return super.keyPressed(event);
++        return super.keyPressed(keyCode, scanCode, modifiers);
+     }
+ 
+     @Override
+     public void onClose() {
+-        minecraft.setScreenAndShow(parent);
++        minecraft.setScreen(parent);
+     }
+ 
+     private record DiffRow(String actionId, Binding sourceBinding, Binding targetBinding) {

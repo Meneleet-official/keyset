@@ -1,0 +1,17 @@
+--- a/dev/keyset/KeysetClient.java
++++ b/dev/keyset/KeysetClient.java
+@@ -1142,10 +1142,10 @@
+     }
+ 
+     private static int currentModifiers() {
+-        boolean ctrl = InputConstants.isKeyDown(InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+-        boolean shift = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
+-        boolean alt = InputConstants.isKeyDown(InputConstants.KEY_LALT) || InputConstants.isKeyDown(InputConstants.KEY_RALT);
+-        boolean command = InputConstants.isKeyDown(InputConstants.KEY_LGUI) || InputConstants.isKeyDown(InputConstants.KEY_RGUI);
++        boolean ctrl = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RCONTROL);
++        boolean shift = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RSHIFT);
++        boolean alt = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LALT) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RALT);
++        boolean command = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LSUPER) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RSUPER);
+         return (ctrl ? InputConstants.MOD_CONTROL : 0) | (shift ? InputConstants.MOD_SHIFT : 0)
+                 | (alt ? InputConstants.MOD_ALT : 0) | (command ? InputConstants.MOD_SUPER : 0);
+     }

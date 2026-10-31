@@ -1,0 +1,79 @@
+--- a/dev/keyset/client/MouseDiagramRenderer.java
++++ b/dev/keyset/client/MouseDiagramRenderer.java
+@@ -9,19 +9,19 @@
+ import dev.keyset.profile.AppearancePalette;
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.client.gui.Font;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.network.chat.Component;
+ 
+ /** Minecraft text bridge for the shared mouse diagram geometry. */
+ public final class MouseDiagramRenderer {
+     private MouseDiagramRenderer() {}
+ 
+-    public static void shell(GuiGraphicsExtractor graphics, MouseDiagramLayout layout, MouseTextureCache cache) {
++    public static void shell(GuiGraphics graphics, MouseDiagramLayout layout, MouseTextureCache cache) {
+         shell(graphics, layout, UiTheme.currentPalette(), cache);
+     }
+ 
+     /** Draws the shared top/side mouse artwork and its view headings in a supplied palette. */
+-    public static void shell(GuiGraphicsExtractor graphics, MouseDiagramLayout layout, AppearancePalette palette,
++    public static void shell(GuiGraphics graphics, MouseDiagramLayout layout, AppearancePalette palette,
+                              MouseTextureCache cache) {
+         cache.shell(graphics, layout, palette);
+         Font font = Minecraft.getInstance().font;
+@@ -30,13 +30,13 @@
+         heading(graphics, font, Component.translatable("keyset.mouse_extra"), layout.extraLabel(), palette.muted());
+     }
+ 
+-    public static void button(GuiGraphicsExtractor graphics, Font font, Component caption, Control control,
++    public static void button(GuiGraphics graphics, Font font, Component caption, Control control,
+                               Rect bounds, State state, MouseTextureCache cache) {
+         button(graphics, font, caption, control, bounds, state, UiTheme.currentPalette(), cache);
+     }
+ 
+     /** Draws a hitbox using a supplied palette, for previews outside the active UI theme. */
+-    public static void button(GuiGraphicsExtractor graphics, Font font, Component caption, Control control,
++    public static void button(GuiGraphics graphics, Font font, Component caption, Control control,
+                               Rect bounds, State state, AppearancePalette palette, MouseTextureCache cache) {
+         if (control.ordinal() >= Control.EXTRA6.ordinal()) {
+             MouseDiagramPainter.button(graphics::fill, control, bounds, palette, state);
+@@ -53,26 +53,26 @@
+         int textY = bounds.y() + (bounds.height() - font.lineHeight) / 2;
+         float scale = Math.min(1f, available / (float) Math.max(1, font.width(label)));
+         scale = Math.min(scale, Math.max(1, bounds.height() - 4) / (float) font.lineHeight);
+-        graphics.pose().pushMatrix();
++        graphics.pose().pushPose();
+         graphics.pose().translate(bounds.x() + (bounds.width() - font.width(label) * scale) / 2f,
+-            textY + (font.lineHeight - font.lineHeight * scale) / 2f);
+-        graphics.pose().scale(scale, scale);
+-        graphics.text(font, label, 0, 0, foreground, false);
+-        graphics.pose().popMatrix();
++            textY + (font.lineHeight - font.lineHeight * scale) / 2f, 0);
++        graphics.pose().scale(scale, scale, 1);
++        graphics.drawString(font, label, 0, 0, foreground, false);
++        graphics.pose().popPose();
+     }
+ 
+-    private static void heading(GuiGraphicsExtractor graphics, Font font, Component component, Rect bounds, int color) {
++    private static void heading(GuiGraphics graphics, Font font, Component component, Rect bounds, int color) {
+         if (bounds.width() <= 0 || bounds.height() <= 0) return;
+         String label = component.getString();
+         float scale = Math.min(1f, Math.min((bounds.width() - 2f) / Math.max(1, font.width(label)),
+             (bounds.height() - 1f) / font.lineHeight));
+         if (scale < 0.5f) return;
+-        graphics.pose().pushMatrix();
++        graphics.pose().pushPose();
+         graphics.pose().translate(bounds.x() + (bounds.width() - font.width(label) * scale) / 2f,
+-            bounds.y() + (bounds.height() - font.lineHeight * scale) / 2f);
+-        graphics.pose().scale(scale, scale);
+-        graphics.text(font, label, 0, 0, color, false);
+-        graphics.pose().popMatrix();
++            bounds.y() + (bounds.height() - font.lineHeight * scale) / 2f, 0);
++        graphics.pose().scale(scale, scale, 1);
++        graphics.drawString(font, label, 0, 0, color, false);
++        graphics.pose().popPose();
+     }
+ }
+ 

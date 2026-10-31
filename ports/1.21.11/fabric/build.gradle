@@ -1,0 +1,28 @@
+plugins { id 'net.fabricmc.fabric-loom-remap' }
+
+base { archivesName = 'keyset-fabric' }
+
+loom {
+    officialMojangMappings()
+}
+
+sourceSets.main {
+    java.setSrcDirs(['src/client/java', rootProject.layout.buildDirectory.dir('generated/common/java')])
+    resources.setSrcDirs(['src/client/resources', rootProject.layout.buildDirectory.dir('generated/common/resources')])
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modCompileOnly("com.terraformersmc:modmenu:${modmenu_version}") { transitive = false }
+
+    // These modules expose mod translations as resources while keeping the
+    // bundled API limited to the two pieces Keyset needs.
+    include implementation("net.fabricmc.fabric-api:fabric-api-base:${fabric_api_base_version}")
+    include implementation("net.fabricmc.fabric-api:fabric-resource-loader-v1:${fabric_resource_loader_version}")
+}
+
+processResources {
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}

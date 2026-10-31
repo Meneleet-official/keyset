@@ -1,0 +1,91 @@
+--- a/dev/keyset/client/BitmapGlyphMetrics.java
++++ b/dev/keyset/client/BitmapGlyphMetrics.java
+@@ -12,8 +12,7 @@
+ import java.util.Set;
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.client.gui.Font;
+-import net.minecraft.client.gui.navigation.ScreenRectangle;
+-import net.minecraft.resources.Identifier;
++import net.minecraft.resources.ResourceLocation;
+ 
+ /** Reads visible Cyrillic ink once from the active bitmap providers, including resource-pack overrides. */
+ final class BitmapGlyphMetrics {
+@@ -24,34 +23,30 @@
+     }
+ 
+     private record Candidate(Ink ink, int quadTop, int quadWidth, int quadHeight, int advance) {
+-        boolean matches(ScreenRectangle actual, int actualAdvance) {
+-            return actual.left() == 0 && actual.top() == quadTop && actual.width() == quadWidth
+-                && actual.height() == quadHeight && actualAdvance == advance;
+-        }
++        boolean matches(int actualAdvance) { return actualAdvance == advance; }
+     }
+     private record Source(boolean known, Map<Integer, Candidate> glyphs) {}
+ 
+     static void reset() { sources = null; }
+ 
+-    static Ink measure(Font font, String label, ScreenRectangle actual) {
+-        if (actual == null) return null;
++    static Ink measure(Font font, String label) {
+         if (sources == null) {
+             sources = new ArrayList<>();
+-            load(Identifier.withDefaultNamespace("default"), new HashSet<>(), 0, sources);
++            load(new ResourceLocation("minecraft", "default"), new HashSet<>(), 0, sources);
+         }
+         int codepoint = label.codePointAt(0);
+         for (Source source : sources) {
+             if (!source.known()) break;
+             Candidate candidate = source.glyphs().get(codepoint);
+             if (candidate != null) {
+-                if (candidate.matches(actual, font.width(label))) return candidate.ink();
++                if (candidate.matches(font.width(label))) return candidate.ink();
+                 break;
+             }
+         }
+-        return new Ink(actual.left(), actual.top(), actual.width(), actual.height());
++        return new Ink(0, 0, Math.max(1, font.width(label)), Math.max(1, font.lineHeight));
+     }
+ 
+-    private static void load(Identifier font, Set<Identifier> path, int depth, List<Source> result) {
++    private static void load(ResourceLocation font, Set<ResourceLocation> path, int depth, List<Source> result) {
+         if (depth > 8 || !path.add(font)) { result.add(new Source(false, Map.of())); return; }
+         var manager = Minecraft.getInstance().getResourceManager();
+         try {
+@@ -66,7 +61,7 @@
+                         && provider.getAsJsonObject("filter").get("uniform").getAsBoolean()
+                             != Minecraft.getInstance().options.forceUnicodeFont().get()) continue;
+                 switch (provider.get("type").getAsString().replace("minecraft:", "")) {
+-                    case "reference" -> load(Identifier.parse(provider.get("id").getAsString()), path, depth + 1, result);
++                    case "reference" -> load(parse(provider.get("id").getAsString()), path, depth + 1, result);
+                     case "bitmap" -> result.add(new Source(true, bitmap(provider)));
+                     case "space" -> {
+                         // Non-drawing glyphs have no prepared bounds and are skipped by the caller.
+@@ -90,7 +85,7 @@
+                     == Character.UnicodeScript.CYRILLIC)) { relevant = true; break; }
+         }
+         if (!relevant || rows.isEmpty()) return Map.of();
+-        Identifier texture = Identifier.parse(provider.get("file").getAsString()).withPrefix("textures/");
++        ResourceLocation texture = parse(provider.get("file").getAsString()).withPrefix("textures/");
+         var manager = Minecraft.getInstance().getResourceManager();
+         try (var stream = manager.open(texture); NativeImage image = NativeImage.read(stream)) {
+             if ((long) image.getWidth() * image.getHeight() > 4_000_000) return Map.of();
+@@ -109,7 +104,7 @@
+                     if (Character.UnicodeScript.of(cp) != Character.UnicodeScript.CYRILLIC) continue;
+                     int offsetX = x * cellWidth, offsetY = y * cellHeight;
+                     var ink = GlyphInkBounds.scan(cellWidth, cellHeight,
+-                        (px, py) -> image.getPixel(offsetX + px, offsetY + py));
++                        (px, py) -> image.getPixelRGBA(offsetX + px, offsetY + py));
+                     if (ink.isEmpty()) continue;
+                     var visible = ink.get();
+                     int left = (int) Math.floor(visible.x() * scale);
+@@ -124,6 +119,10 @@
+             return Map.copyOf(glyphs);
+         }
+     }
++
++    private static ResourceLocation parse(String id) {
++        return new ResourceLocation(id);
++    }
+ }
+ 
+ 

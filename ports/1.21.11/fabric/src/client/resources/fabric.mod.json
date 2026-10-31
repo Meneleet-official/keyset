@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "keyset",
+  "version": "${version}",
+  "name": "Keyset",
+  "description": "Visual key remapping with named hotkey profiles.",
+  "icon": "assets/keyset/icon.png",
+  "authors": ["Meneleet", "Macronux"],
+  "license": "ISC",
+  "environment": "client",
+  "entrypoints": { "modmenu": ["dev.keyset.fabric.KeysetModMenu"] },
+  "mixins": ["keyset.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-resource-loader-v1": "*"
+  }
+}

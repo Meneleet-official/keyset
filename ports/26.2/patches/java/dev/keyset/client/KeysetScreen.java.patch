@@ -1,0 +1,52 @@
+--- a/dev/keyset/client/KeysetScreen.java
++++ b/dev/keyset/client/KeysetScreen.java
+@@ -1464,7 +1464,7 @@
+     }
+ 
+     private String keyName(VirtualKey key) {
+-        return (key.mouse() ? InputConstants.Type.MOUSE : InputConstants.Type.KEYBOARD).getOrCreate(key.code()).getName();
++        return (key.mouse() ? InputConstants.Type.MOUSE : InputConstants.Type.KEYSYM).getOrCreate(key.code()).getName();
+     }
+ 
+     private void captureMappingAt(int slot) {
+@@ -1722,7 +1722,7 @@
+         } else {
+             KeysetBranding.drawLogo(graphics, 16, 17, 30, 30);
+             graphics.text(font, "KEYSET", 53, 20, 0xFFFFFFFF, true);
+-            graphics.text(font, KeysetBranding.VERSION + "+mc26.3", 53, 36, 0xFFB2B7B5, true);
++            graphics.text(font, KeysetBranding.VERSION + "  /  26.2", 53, 36, 0xFFB2B7B5, true);
+             graphics.text(font, Component.translatable("keyset.profile"), profileCycleButton.getX(), 12, 0xFFB2B7B5, true);
+             graphics.fill(16, 57, width - 16, 58, UiTheme.border());
+             graphics.fill(16, height - 48, width - 16, height - 47, UiTheme.border());
+@@ -1900,18 +1900,18 @@
+         includeHeldModifier(key, modifiers, InputConstants.MOD_CONTROL, InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL);
+         includeHeldModifier(key, modifiers, InputConstants.MOD_SHIFT, InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT);
+         includeHeldModifier(key, modifiers, InputConstants.MOD_ALT, InputConstants.KEY_LALT, InputConstants.KEY_RALT);
+-        includeHeldModifier(key, modifiers, InputConstants.MOD_SUPER, InputConstants.KEY_LGUI, InputConstants.KEY_RGUI);
++        includeHeldModifier(key, modifiers, InputConstants.MOD_SUPER, InputConstants.KEY_LSUPER, InputConstants.KEY_RSUPER);
+         nativeCapture.press(key);
+         statusMessage = Component.translatable("keyset.native_release", bindingDisplay(nativeCapture.preview()));
+         refreshVisibleRows();
+     }
+ 
+     private void includeHeldModifier(String key, int modifiers, int mask, int leftCode, int rightCode) {
+-        String left = InputConstants.Type.KEYBOARD.getOrCreate(leftCode).getName();
+-        String right = InputConstants.Type.KEYBOARD.getOrCreate(rightCode).getName();
++        String left = InputConstants.Type.KEYSYM.getOrCreate(leftCode).getName();
++        String right = InputConstants.Type.KEYSYM.getOrCreate(rightCode).getName();
+         if ((modifiers & mask) != 0 && !key.equals(left) && !key.equals(right)
+                 && !nativeCapture.contains(left) && !nativeCapture.contains(right)) {
+-            nativeCapture.include(InputConstants.isKeyDown(rightCode) ? right : left);
++            nativeCapture.include(InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), rightCode) ? right : left);
+         }
+     }
+ 
+@@ -2080,7 +2080,7 @@
+         return key == InputConstants.KEY_LSHIFT || key == InputConstants.KEY_RSHIFT
+             || key == InputConstants.KEY_LCONTROL || key == InputConstants.KEY_RCONTROL
+             || key == InputConstants.KEY_LALT || key == InputConstants.KEY_RALT
+-            || key == InputConstants.KEY_LGUI || key == InputConstants.KEY_RGUI;
++            || key == InputConstants.KEY_LSUPER || key == InputConstants.KEY_RSUPER;
+     }
+ 
+     @Override

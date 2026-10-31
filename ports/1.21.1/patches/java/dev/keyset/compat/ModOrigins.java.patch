@@ -1,0 +1,25 @@
+--- a/dev/keyset/compat/ModOrigins.java
++++ b/dev/keyset/compat/ModOrigins.java
+@@ -121,13 +121,21 @@
+     }
+ 
+     private static Owner ownerFromNamespace(KeyMapping mapping) {
+-        String categoryNamespace = mapping.getCategory().id().getNamespace();
++        String categoryNamespace = categoryNamespace(mapping.getCategory());
+         Owner categoryOwner = MODS_BY_ID.get(categoryNamespace);
+         if (categoryOwner != null && !categoryNamespace.equals("minecraft")) return categoryOwner;
+ 
+         String keyName = mapping.getName();
+         String keyNamespace = namespaceFromKeyName(keyName);
+         return keyNamespace == null ? null : MODS_BY_ID.get(keyNamespace);
++    }
++
++    private static String categoryNamespace(String category) {
++        String[] parts = category.split("\\.");
++        if (parts.length >= 3 && parts[0].equals("key") && parts[1].equals("categories")) {
++            return parts[2];
++        }
++        return "";
+     }
+ 
+     private static String namespaceFromKeyName(String keyName) {

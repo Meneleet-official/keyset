@@ -1,0 +1,77 @@
+--- a/dev/keyset/client/AppearancePreviewRenderer.java
++++ b/dev/keyset/client/AppearancePreviewRenderer.java
+@@ -12,7 +12,7 @@
+ import dev.keyset.profile.UiAppearance;
+ import net.minecraft.client.KeyMapping;
+ import net.minecraft.client.gui.Font;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.network.chat.Component;
+ 
+ /** A read-only miniature of the current inputs, using the same geometry and colors as the editor. */
+@@ -35,7 +35,7 @@
+     }
+ 
+     /** Color editing uses the full pane for one device instead of two unreadable thumbnails. */
+-    public void drawDevice(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    public void drawDevice(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                            UiAppearance appearance, KeyboardLayouts.Layout language, boolean mouseMode, double keyboardPan) {
+         AppearancePalette palette = palette(appearance);
+         graphics.fill(x, y, x + width, y + height, palette.panel());
+@@ -65,7 +65,7 @@
+         return cachedPalette;
+     }
+ 
+-    public void draw(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    public void draw(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                      UiAppearance appearance, KeyboardLayouts.Layout language) {
+         AppearancePalette palette = palette(appearance);
+         graphics.fill(x, y, x + width, y + height, palette.panel());
+@@ -97,7 +97,7 @@
+         allInputs = new BindingIndex<>(mappings, KeysetClient::binding, KeysetClient::bindingContextsConflict);
+         visibleInputs = new BindingIndex<>(mappings.stream().filter(mapping ->
+                 !KeysetClient.isModHidden(KeysetClient.owner(mapping).id())
+-                && !KeysetClient.isCategoryHidden(mapping.getCategory().id().toString())).toList(),
++                && !KeysetClient.isCategoryHidden(mapping.getCategory())).toList(),
+                 KeysetClient::binding, KeysetClient::bindingContextsConflict);
+         revision = current;
+     }
+@@ -107,7 +107,7 @@
+                 visibleInputs.keyConflicts(input), false, allInputs.forInput(input).isEmpty());
+     }
+ 
+-    private void keyboard(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void keyboard(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                           UiAppearance appearance, KeyboardLayouts.Layout language, AppearancePalette palette) {
+         var layout = KeyboardDiagramLayout.forArea(x, y, Math.max(1, width), Math.max(1, height),
+                 appearance.keyboardScale(), appearance.keyboardFormFactor(), language, appearance.keyboardPresentation());
+@@ -123,16 +123,16 @@
+         }
+     }
+ 
+-    private void mouse(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void mouse(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                        int mouseScale, AppearancePalette palette) {
+         if (width < 1 || height < 1) return;
+         final int virtualWidth = 280, virtualHeight = 148;
+         float scale = Math.min(width / (float) virtualWidth, height / (float) virtualHeight);
+         var layout = MouseDiagramLayout.forArea(0, 0, virtualWidth, virtualHeight, mouseScale);
+-        graphics.pose().pushMatrix();
++        graphics.pose().pushPose();
+         graphics.pose().translate(x + (width - virtualWidth * scale) / 2f,
+-                y + (height - virtualHeight * scale) / 2f);
+-        graphics.pose().scale(scale, scale);
++            y + (height - virtualHeight * scale) / 2f, 0.0F);
++        graphics.pose().scale(scale, scale, 1.0F);
+         MouseDiagramRenderer.shell(graphics, layout, palette, mouseArtwork);
+         for (var part : layout.buttons()) {
+             String input = switch (part.control()) {
+@@ -163,7 +163,7 @@
+             }
+             MouseDiagramRenderer.button(graphics, font, Component.literal(label), part.control(), rect, state, palette, mouseArtwork);
+         }
+-        graphics.pose().popMatrix();
++        graphics.pose().popPose();
+     }
+ 
+     @Override

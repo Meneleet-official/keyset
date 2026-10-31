@@ -1,0 +1,38 @@
+--- a/dev/keyset/client/MouseTextureCache.java
++++ b/dev/keyset/client/MouseTextureCache.java
+@@ -15,7 +15,7 @@
+ import java.util.List;
+ import java.util.concurrent.atomic.AtomicLong;
+ import net.minecraft.client.Minecraft;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.renderer.RenderPipelines;
+ import net.minecraft.client.renderer.texture.DynamicTexture;
+ import net.minecraft.resources.Identifier;
+@@ -28,7 +28,7 @@
+     private final MouseArtworkCache artwork = new MouseArtworkCache();
+     private final EnumMap<Layer, TextureSlot> textures = new EnumMap<>(Layer.class);
+ 
+-    public void shell(GuiGraphicsExtractor graphics, MouseDiagramLayout layout, AppearancePalette palette) {
++    public void shell(GuiGraphics graphics, MouseDiagramLayout layout, AppearancePalette palette) {
+         Rect body = layout.body(), side = layout.sideBody();
+         boolean hasSide = side.width() > 0 && side.height() > 0;
+         int x = hasSide ? Math.min(body.x(), side.x()) : body.x();
+@@ -45,7 +45,7 @@
+         draw(graphics, Layer.SHELL, image, x, y);
+     }
+ 
+-    public void button(GuiGraphicsExtractor graphics, Control control, Rect bounds, AppearancePalette palette, State state) {
++    public void button(GuiGraphics graphics, Control control, Rect bounds, AppearancePalette palette, State state) {
+         Layer layer = switch (control) {
+             case LEFT -> Layer.LEFT;
+             case RIGHT -> Layer.RIGHT;
+@@ -62,7 +62,7 @@
+         draw(graphics, layer, image, bounds.x(), bounds.y());
+     }
+ 
+-    private void draw(GuiGraphicsExtractor graphics, Layer layer, Image image, int x, int y) {
++    private void draw(GuiGraphics graphics, Layer layer, Image image, int x, int y) {
+         TextureSlot slot = textures.computeIfAbsent(layer, value -> new TextureSlot(
+             Identifier.fromNamespaceAndPath("keyset", "generated/mouse/" + id + "/" + value.name().toLowerCase(java.util.Locale.ROOT))));
+         slot.update(image);

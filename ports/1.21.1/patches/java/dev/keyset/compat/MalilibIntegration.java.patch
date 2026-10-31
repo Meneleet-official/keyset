@@ -1,0 +1,139 @@
+--- a/dev/keyset/compat/MalilibIntegration.java
++++ b/dev/keyset/compat/MalilibIntegration.java
+@@ -29,6 +29,9 @@
+     private static final String LITEMATICA_ROOT = "fi.dy.masa.litematica.";
+     private static final String LITEMATICA = "fi.dy.masa.litematica.config.";
+     private static final String MALILIB = "fi.dy.masa.malilib.";
++    private static final int MALILIB_MOUSE_OFFSET = 100;
++    private static final int GLFW_MOUSE_BUTTON_COUNT = 8;
++    private static final int MALILIB_NO_KEY = -1; // GLFW_KEY_UNKNOWN
+ 
+     private MalilibIntegration() {}
+ 
+@@ -153,7 +156,7 @@
+         private final Class<?> keybindSettingsType;
+         private final Class<?> keybindManagerType;
+         private final Class<?> inputEventHandlerType;
+-        private final Class<?> scanCodesType;
++        private final Class<?> keyCodesType;
+         private final Class<?> configsType;
+         private final List<HotkeyReference> trackedHotkeys = new ArrayList<>();
+ 
+@@ -165,7 +168,7 @@
+             this.keybindSettingsType = load(MALILIB + "hotkeys.KeybindSettings");
+             this.keybindManagerType = load(MALILIB + "hotkeys.IKeybindManager");
+             this.inputEventHandlerType = load(MALILIB + "event.InputEventHandler");
+-            this.scanCodesType = load(MALILIB + "util.input.ScanCodes");
++            this.keyCodesType = load(MALILIB + "util.KeyCodes");
+             this.configsType = load(LITEMATICA + "Configs");
+         }
+ 
+@@ -225,14 +228,16 @@
+ 
+         private Binding readBinding(Object keybind) throws ReflectiveOperationException {
+             Object rawKeys = call(keybindType, keybind, "getKeys");
+-            if (!(rawKeys instanceof Iterable<?> scanCodes)) {
++            if (!(rawKeys instanceof Iterable<?> keyCodes)) {
+                 throw new IllegalArgumentException("MaLiLib returned a non-list keybind value");
+             }
+             List<String> names = new ArrayList<>();
+-            for (Object code : scanCodes) {
+-                if (!(code instanceof Number number)) throw new IllegalArgumentException("Invalid MaLiLib scan code");
+-                String minecraftName = minecraftNameForScanCode(number.intValue());
+-                if (minecraftName == null) throw new IllegalArgumentException("Unsupported MaLiLib scan code " + number.intValue());
++            for (Object code : keyCodes) {
++                if (!(code instanceof Number number)) throw new IllegalArgumentException("Invalid MaLiLib key code");
++                int keyCode = number.intValue();
++                if (keyCode == MALILIB_NO_KEY) continue;
++                String minecraftName = minecraftNameForKeyCode(keyCode);
++                if (minecraftName == null) throw new IllegalArgumentException("Unsupported MaLiLib key code " + keyCode);
+                 names.add(minecraftName);
+             }
+             return binding(names, settingsJson(keybind));
+@@ -244,9 +249,10 @@
+                 for (String item : storageKeys.split(",")) {
+                     String nativeName = item.trim();
+                     if (nativeName.isEmpty()) continue;
+-                    int scanCode = scanCodeFromName(nativeName);
+-                    String activeName = scanCodeName(scanCode);
+-                    String minecraftName = minecraftNameForScanCode(scanCode);
++                    int keyCode = keyCodeFromName(nativeName);
++                    if (keyCode == MALILIB_NO_KEY) continue;
++                    String activeName = keyCodeName(keyCode);
++                    String minecraftName = minecraftNameForKeyCode(keyCode);
+                     if (minecraftName == null) throw new IllegalArgumentException("Unsupported MaLiLib key " + activeName);
+                     names.add(minecraftName);
+                 }
+@@ -290,21 +296,21 @@
+             minecraftKeys.addAll(binding.keys());
+ 
+             List<String> storage = new ArrayList<>();
+-            Set<Integer> seenScanCodes = new LinkedHashSet<>();
++            Set<Integer> seenKeyCodes = new LinkedHashSet<>();
+             for (String minecraftName : minecraftKeys) {
+                 InputConstants.Key input = InputConstants.getKey(minecraftName);
+-                int scanCode = input.getValue();
++                int keyCode = input.getValue();
+                 if (input.getType() == InputConstants.Type.MOUSE) {
+-                    scanCode -= scanCodesType.getField("OFFSET_MOUSE").getInt(null);
+-                }
+-                if (scanCode == 0) throw new IllegalArgumentException("Unknown native input " + minecraftName);
+-                if (seenScanCodes.add(scanCode)) {
+-                    // Normalize names for MaLiLib's active keyboard type (for example, AZERTY).
+-                    String activeName = scanCodeName(scanCode);
++                    keyCode -= MALILIB_MOUSE_OFFSET;
++                }
++                if (keyCode == 0 || keyCode == MALILIB_NO_KEY) throw new IllegalArgumentException("Unknown native input " + minecraftName);
++                if (seenKeyCodes.add(keyCode)) {
++                    // MaLiLib 1.21.1 stores GLFW keysyms, matching Minecraft's KEYSYM values.
++                    String activeName = keyCodeName(keyCode);
+                     if (activeName == null || activeName.isBlank()) {
+                         throw new IllegalArgumentException("MaLiLib has no name for key " + minecraftName);
+                     }
+-                    if (scanCodeFromName(activeName) != scanCode) {
++                    if (keyCodeFromName(activeName) != keyCode) {
+                         throw new IllegalArgumentException("MaLiLib cannot round-trip input " + minecraftName);
+                     }
+                     storage.add(activeName);
+@@ -330,27 +336,26 @@
+             call(keybindType, keybind, "setSettings", keybindSettingsType, settings);
+         }
+ 
+-        private int scanCodeFromName(String name) throws ReflectiveOperationException {
+-            Object code = call(scanCodesType, null, "getScanCodeFromName", String.class, name);
++        private int keyCodeFromName(String name) throws ReflectiveOperationException {
++            Object code = call(keyCodesType, null, "getKeyCodeFromName", String.class, name);
+             return ((Number) code).intValue();
+         }
+ 
+-        private String scanCodeName(int scanCode) throws ReflectiveOperationException {
+-            Object name = call(scanCodesType, null, "getNameForScanCode", int.class, scanCode);
++        private String keyCodeName(int keyCode) throws ReflectiveOperationException {
++            Object name = call(keyCodesType, null, "getNameForKey", int.class, keyCode);
+             return name == null ? null : name.toString();
+         }
+ 
+-        private String minecraftNameForScanCode(int scanCode) throws ReflectiveOperationException {
+-            // Both 26.3 APIs use SDL scancodes. MC supplies canonical names, including numeric
+-            // names for media/unlisted keys, so no layout-dependent letter translation is needed.
+-            int mouseOffset = scanCodesType.getField("OFFSET_MOUSE").getInt(null);
+-            if (scanCode >= -mouseOffset && scanCode < 0) {
+-                return InputConstants.Type.MOUSE.getOrCreate(scanCode + mouseOffset).getName();
+-            }
+-            if (scanCode == 0 || scanCodeName(scanCode) == null) return null;
+-            // MaLiLib's other negative ranges remain opaque numeric identifiers. The editor
+-            // proxies are never routed as vanilla keys; this also preserves native controller binds.
+-            return InputConstants.Type.KEYBOARD.getOrCreate(scanCode).getName();
++        private String minecraftNameForKeyCode(int keyCode) throws ReflectiveOperationException {
++            // MaLiLib 1.21.1 stores GLFW keysyms and mouse buttons as button - 100.
++            // GLFW_MOUSE_BUTTON_1..8 map to -100..-93; -1 is MaLiLib's no-key sentinel.
++            if (keyCode >= -MALILIB_MOUSE_OFFSET
++                    && keyCode < -MALILIB_MOUSE_OFFSET + GLFW_MOUSE_BUTTON_COUNT) {
++                return InputConstants.Type.MOUSE.getOrCreate(keyCode + MALILIB_MOUSE_OFFSET).getName();
++            }
++            if (keyCode == MALILIB_NO_KEY) return InputConstants.Type.KEYSYM.getOrCreate(0).getName();
++            if (keyCode < 0 || keyCodeName(keyCode) == null) return null;
++            return InputConstants.Type.KEYSYM.getOrCreate(keyCode).getName();
+         }
+ 
+         private void updateUsedKeys() throws ReflectiveOperationException {

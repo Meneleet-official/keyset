@@ -1,0 +1,31 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="ISC"
+
+[[mods]]
+modId="keyset"
+version="${version}"
+displayName="Keyset"
+logoFile="assets/keyset/icon.png"
+authors="Meneleet; Macronux"
+description='''Visual key remapping with named hotkey profiles.'''
+
+[[mixins]]
+config="keyset.mixins.json"
+
+[[mixins]]
+config="keyset.neoforge.mixins.json"
+
+[[dependencies.keyset]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.265,)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.keyset]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.21.2)"
+ordering="NONE"
+side="CLIENT"

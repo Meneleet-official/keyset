@@ -1,0 +1,13 @@
+plugins { id 'net.neoforged.moddev' }
+base { archivesName = 'keyset-neoforge' }
+sourceSets.main.java.srcDir('../../../neoforge/src/client/java')
+sourceSets.main.resources.srcDir('src/client/resources')
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    inputs.property 'version', project.version
+    filesMatching('META-INF/neoforge.mods.toml') { expand version: project.version }
+}
+neoForge {
+    version = project.neoforge_version
+    mods { keyset { sourceSet sourceSets.main } }
+}

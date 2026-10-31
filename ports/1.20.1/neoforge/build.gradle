@@ -1,0 +1,75 @@
+plugins {
+    id 'net.neoforged.moddev.legacyforge'
+    id 'java'
+}
+
+apply from: rootProject.file('../patching.gradle')
+
+base { archivesName = 'keyset-neoforge' }
+
+def generatedJava = layout.buildDirectory.dir('generated/keyset/client/java')
+def generatedResources = layout.buildDirectory.dir('generated/keyset/client/resources')
+
+tasks.register('syncClientJava', Sync) {
+    def overlay = rootProject.file('common/src/client/java')
+    from(rootProject.file('../../common/src/client/java')) {
+        exclude { element -> new File(overlay, element.relativePath.pathString).isFile() }
+    }
+    from(overlay)
+    into(generatedJava)
+    inputs.files(rootProject.file('patches/java'))
+    doLast { keysetApplyPatches(rootProject.file('patches/java'), destinationDir) }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+tasks.register('syncClientResources', Sync) {
+    def overlay = rootProject.file('common/src/client/resources')
+    from(rootProject.file('../../common/src/client/resources')) {
+        exclude { element -> new File(overlay, element.relativePath.pathString).isFile() }
+    }
+    from(overlay)
+    into(generatedResources)
+    inputs.files(rootProject.file('patches/resources'))
+    doLast { keysetApplyPatches(rootProject.file('patches/resources'), destinationDir) }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+sourceSets.main {
+    java.setSrcDirs(['src/main/java', generatedJava])
+    resources.setSrcDirs(['src/main/resources', generatedResources])
+}
+
+tasks.named('compileJava') { dependsOn 'syncClientJava' }
+tasks.named('processResources') { dependsOn 'syncClientResources' }
+tasks.named('sourcesJar') { dependsOn 'syncClientJava', 'syncClientResources' }
+
+legacyForge {
+    enable {
+        neoForgeVersion = neoforge_version
+        obfuscateJar = true
+    }
+    runs {
+        client { client() }
+    }
+    mods {
+        keyset { sourceSet sourceSets.main }
+    }
+}
+
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+mixin {
+    add sourceSets.main, 'keyset.refmap.json'
+    config 'keyset.mixins.json'
+}
+
+tasks.named('jar', Jar).configure {
+    manifest.attributes('MixinConfigs': 'keyset.mixins.json')
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') { expand version: project.version }
+}

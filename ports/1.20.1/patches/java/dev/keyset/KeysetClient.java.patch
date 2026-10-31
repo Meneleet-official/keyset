@@ -1,0 +1,218 @@
+--- a/dev/keyset/KeysetClient.java
++++ b/dev/keyset/KeysetClient.java
+@@ -26,7 +26,7 @@
+ import net.minecraft.client.KeyMapping;
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.network.chat.Component;
+-import net.minecraft.resources.Identifier;
++import net.minecraft.resources.ResourceLocation;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -57,7 +57,7 @@
+     private static String lastGameContext;
+     private static KeyMapping nextProfile;
+     private static KeyMapping previousProfile;
+-    private static KeyMapping.Category generalCategory;
++    private static String generalCategory;
+     private static Map<String, Binding> liveBaseline = Map.of();
+     private static boolean saving, refreshing;
+     private static long revision;
+@@ -74,28 +74,30 @@
+ 
+     public static KeyMapping openMapping() {
+         if (open == null) {
+-            open = new KeyMapping("keyset.open", InputConstants.KEY_GRAVE, generalCategory());
++            open = new KeyMapping("keyset.open", InputConstants.Type.KEYSYM, InputConstants.KEY_GRAVE, generalCategory());
+         }
+         return open;
+     }
+ 
+     public static KeyMapping nextProfileMapping() {
+         if (nextProfile == null) {
+-            nextProfile = new KeyMapping("keyset.next_profile", InputConstants.UNKNOWN.getValue(), generalCategory());
++            nextProfile = new KeyMapping("keyset.next_profile", InputConstants.Type.KEYSYM,
++                InputConstants.UNKNOWN.getValue(), generalCategory());
+         }
+         return nextProfile;
+     }
+ 
+     public static KeyMapping previousProfileMapping() {
+         if (previousProfile == null) {
+-            previousProfile = new KeyMapping("keyset.previous_profile", InputConstants.UNKNOWN.getValue(), generalCategory());
++            previousProfile = new KeyMapping("keyset.previous_profile", InputConstants.Type.KEYSYM,
++                InputConstants.UNKNOWN.getValue(), generalCategory());
+         }
+         return previousProfile;
+     }
+ 
+-    private static KeyMapping.Category generalCategory() {
++    private static String generalCategory() {
+         if (generalCategory == null) {
+-            generalCategory = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("keyset", "general"));
++            generalCategory = "key.categories.keyset";
+         }
+         return generalCategory;
+     }
+@@ -110,12 +112,22 @@
+                 .thenComparing(k -> name(k).getString())).toList();
+     }
+ 
++    private static KeyMapping mappingByName(String name) {
++        Minecraft mc = Minecraft.getInstance();
++        if (mc.options != null) {
++            for (KeyMapping mapping : mc.options.keyMappings) {
++                if (mapping.getName().equals(name)) return mapping;
++            }
++        }
++        return ExternalHotkeys.findMapping(name);
++    }
++
+     public static Component name(KeyMapping mapping) {
+         var external = ExternalHotkeys.get(mapping);
+         return external == null ? Component.translatable(mapping.getName()) : external.name();
+     }
+ 
+-    public static Component categoryLabel(KeyMapping.Category category) { return ExternalHotkeys.categoryLabel(category); }
++    public static Component categoryLabel(String category) { return ExternalHotkeys.categoryLabel(category); }
+     public static boolean multiKeyCapture(KeyMapping mapping) { return ExternalHotkeys.get(mapping) != null; }
+     public static ModOrigins.Owner owner(KeyMapping mapping) {
+         var external = ExternalHotkeys.get(mapping);
+@@ -571,7 +583,7 @@
+             if (peers.isEmpty()) throw new IOException("The conflict has already changed");
+             Binding previous = previousBindingForSwap(actionId);
+             if (resolution == ConflictResolution.SWAP && (previous == null || peers.size() != 1
+-                    || !peers.getFirst().getName().equals(counterpartId))) throw new IOException("This binding can no longer be swapped");
++                    || !peers.get(0).getName().equals(counterpartId))) throw new IOException("This binding can no longer be swapped");
+             tx.commit(() -> {
+                 for (KeyMapping peer : peers) assign(peer, resolution == ConflictResolution.SWAP ? previous
+                         : new Binding(InputConstants.UNKNOWN.getName(), false, false, false));
+@@ -887,7 +899,7 @@
+         ensureLoaded();
+         transaction(tx -> {
+             if (revision != expectedRevision) throw new SharedSettingsConflictException("Bindings changed while confirming category removal");
+-            var targets = mappings().stream().filter(mapping -> mapping.getCategory().id().toString().equals(categoryId)).toList();
++            var targets = mappings().stream().filter(mapping -> mapping.getCategory().equals(categoryId)).toList();
+             if (targets.isEmpty()) return;
+             tx.commit(() -> {
+                 createBackup("unbind-category");
+@@ -899,9 +911,9 @@
+         });
+     }
+ 
+-    public static void setSectionHidden(KeyMapping.Category category, boolean hidden) throws IOException {
++    public static void setSectionHidden(String category, boolean hidden) throws IOException {
+         editDisplayPreferences(() -> {
+-            preferences.setCategoryHidden(category.id().toString(), hidden);
++            preferences.setCategoryHidden(category, hidden);
+             if (!hidden) for (KeyMapping mapping : mappings()) {
+                 if (mapping.getCategory().equals(category)) preferences.setModHidden(owner(mapping).id(), false);
+             }
+@@ -1072,7 +1084,7 @@
+         ensureLoaded();
+         if (!loaded) return;
+         long now = System.nanoTime();
+-        if (watcher.due(now) && !(Minecraft.getInstance().gui.screen() instanceof KeysetScreen screen && screen.isCapturingBindings())) {
++        if (watcher.due(now) && !(Minecraft.getInstance().screen instanceof KeysetScreen screen && screen.isCapturingBindings())) {
+             watcher.acknowledge(now);
+             try { refreshFromSharedSettings(); }
+             catch (IOException | RuntimeException failure) {
+@@ -1083,21 +1095,21 @@
+         // Releasing a modifier before the primary key must not leave a chord held.
+         ResourcePackThemes.tick();
+         for (var entry : chords.entrySet()) {
+-            KeyMapping mapping = KeyMapping.get(entry.getKey());
++            KeyMapping mapping = mappingByName(entry.getKey());
+             if (mapping == null) continue;
+             Binding chord = entry.getValue();
+-            if (chord != null && (Minecraft.getInstance().gui.screen() != null || !modifiersMatch(chord) || !platform.active(mapping))) {
++            if (chord != null && (Minecraft.getInstance().screen != null || !modifiersMatch(chord) || !platform.active(mapping))) {
+                 mapping.setDown(false);
+             }
+         }
+         while (openMapping().consumeClick()) {
+-            if (Minecraft.getInstance().gui.screen() == null) Minecraft.getInstance().setScreenAndShow(new KeysetScreen(null));
++            if (Minecraft.getInstance().screen == null) Minecraft.getInstance().setScreen(new KeysetScreen(null));
+         }
+         while (nextProfileMapping().consumeClick()) {
+-            if (Minecraft.getInstance().gui.screen() == null) cycleProfile(false);
++            if (Minecraft.getInstance().screen == null) cycleProfile(false);
+         }
+         while (previousProfileMapping().consumeClick()) {
+-            if (Minecraft.getInstance().gui.screen() == null) cycleProfile(true);
++            if (Minecraft.getInstance().screen == null) cycleProfile(true);
+         }
+         updateContextRoute();
+     }
+@@ -1108,8 +1120,8 @@
+         try {
+             switchProfile(next.id());
+             if (Minecraft.getInstance().player != null) {
+-                Minecraft.getInstance().player.sendOverlayMessage(
+-                        Component.translatable("keyset.profile_switched", next.name()));
++                Minecraft.getInstance().player.displayClientMessage(
++                        Component.translatable("keyset.profile_switched", next.name()), true);
+             }
+         } catch (IOException | RuntimeException exception) {
+             LOG.warn("Cannot switch to the next profile", exception);
+@@ -1129,8 +1141,8 @@
+         try {
+             switchProfile(profileId);
+             if (Minecraft.getInstance().player != null) {
+-                Minecraft.getInstance().player.sendOverlayMessage(
+-                        Component.translatable("keyset.profile_auto_applied", profile.name()));
++                Minecraft.getInstance().player.displayClientMessage(
++                        Component.translatable("keyset.profile_auto_applied", profile.name()), true);
+             }
+         } catch (IOException | RuntimeException exception) {
+             LOG.warn("Cannot apply the automatic profile for {}", context.label(), exception);
+@@ -1141,20 +1153,20 @@
+         return modifiersMatch(b, currentModifiers());
+     }
+ 
+-    private static int currentModifiers() {
+-        boolean ctrl = InputConstants.isKeyDown(InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+-        boolean shift = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
+-        boolean alt = InputConstants.isKeyDown(InputConstants.KEY_LALT) || InputConstants.isKeyDown(InputConstants.KEY_RALT);
+-        boolean command = InputConstants.isKeyDown(InputConstants.KEY_LGUI) || InputConstants.isKeyDown(InputConstants.KEY_RGUI);
+-        return (ctrl ? InputConstants.MOD_CONTROL : 0) | (shift ? InputConstants.MOD_SHIFT : 0)
+-                | (alt ? InputConstants.MOD_ALT : 0) | (command ? InputConstants.MOD_SUPER : 0);
++    public static int currentModifiers() {
++        boolean ctrl = LegacyInput.isKeyDown(InputConstants.KEY_LCONTROL) || LegacyInput.isKeyDown(InputConstants.KEY_RCONTROL);
++        boolean shift = LegacyInput.isKeyDown(InputConstants.KEY_LSHIFT) || LegacyInput.isKeyDown(InputConstants.KEY_RSHIFT);
++        boolean alt = LegacyInput.isKeyDown(InputConstants.KEY_LALT) || LegacyInput.isKeyDown(InputConstants.KEY_RALT);
++        boolean command = LegacyInput.isKeyDown(LegacyInput.KEY_LGUI) || LegacyInput.isKeyDown(LegacyInput.KEY_RGUI);
++        return (ctrl ? LegacyInput.MOD_CONTROL : 0) | (shift ? LegacyInput.MOD_SHIFT : 0)
++                | (alt ? LegacyInput.MOD_ALT : 0) | (command ? LegacyInput.MOD_SUPER : 0);
+     }
+ 
+     private static boolean modifiersMatch(Binding b, int modifiers) {
+-        return b.ctrl() == ((modifiers & InputConstants.MOD_CONTROL) != 0)
+-                && b.shift() == ((modifiers & InputConstants.MOD_SHIFT) != 0)
+-                && b.alt() == ((modifiers & InputConstants.MOD_ALT) != 0)
+-                && b.command() == ((modifiers & InputConstants.MOD_SUPER) != 0);
++        return b.ctrl() == ((modifiers & LegacyInput.MOD_CONTROL) != 0)
++                && b.shift() == ((modifiers & LegacyInput.MOD_SHIFT) != 0)
++                && b.alt() == ((modifiers & LegacyInput.MOD_ALT) != 0)
++                && b.command() == ((modifiers & LegacyInput.MOD_SUPER) != 0);
+     }
+ 
+     /** Instance matching is also used by inventory, hotbar and other GUI shortcuts. */
+@@ -1164,7 +1176,7 @@
+         if (chord != null) return chord.key().equals(key.getName()) && modifiersMatch(chord, modifiers) && platform.active(mapping);
+         if (mapping.saveString().equals(key.getName()) && chords.entrySet().stream()
+                 .anyMatch(e -> e.getValue().key().equals(key.getName()) && modifiersMatch(e.getValue(), modifiers)
+-                        && KeyMapping.get(e.getKey()) != null && platform.active(KeyMapping.get(e.getKey())))) return false;
++                        && mappingByName(e.getKey()) != null && platform.active(mappingByName(e.getKey())))) return false;
+         return null;
+     }
+ 
+@@ -1185,7 +1197,7 @@
+         // Always allow vanilla to release a plain binding, including when the
+         // modifier was pressed after its primary key was already held.
+         if (!down && !click) return false;
+-        if (matches.isEmpty() || Minecraft.getInstance().gui.screen() != null) return false;
++        if (matches.isEmpty() || Minecraft.getInstance().screen != null) return false;
+         for (KeyMapping mapping : matches) {
+             if (click) {
+                 var access = (KeyMappingAccessor) mapping;

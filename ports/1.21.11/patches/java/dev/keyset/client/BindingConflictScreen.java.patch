@@ -1,0 +1,29 @@
+--- a/dev/keyset/client/BindingConflictScreen.java
++++ b/dev/keyset/client/BindingConflictScreen.java
+@@ -6,7 +6,7 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ import net.minecraft.client.KeyMapping;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.StringWidget;
+ import net.minecraft.client.gui.components.Tooltip;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -115,7 +115,7 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, panelX + 12, panelY + 12, panelWidth - 24, UiTheme.text());
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.conflict_action", KeysetClient.actionName(actionId)),
+@@ -136,7 +136,7 @@
+                 panelX + 12, listTop + 8, panelWidth - 24, UiTheme.muted());
+         if (error != null) KeysetWidgets.drawText(graphics, font, error, panelX + 12,
+                 panelY + panelHeight - 23, panelWidth - 24, UiTheme.red());
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++        super.render(graphics, mouseX, mouseY, partialTick);
+     }
+ 
+     @Override

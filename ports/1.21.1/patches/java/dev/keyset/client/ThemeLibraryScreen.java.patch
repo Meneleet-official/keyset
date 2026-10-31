@@ -1,0 +1,121 @@
+--- a/dev/keyset/client/ThemeLibraryScreen.java
++++ b/dev/keyset/client/ThemeLibraryScreen.java
+@@ -18,7 +18,7 @@
+ import java.util.Objects;
+ import java.util.Set;
+ import java.util.UUID;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.EditBox;
+ import net.minecraft.client.gui.components.Tooltip;
+@@ -280,7 +280,7 @@
+         try {
+             KeysetClient.applySavedTheme(SavedTheme.capture("preset", preset.applyTo(KeysetClient.appearance())));
+             onApplied.run();
+-            minecraft.setScreenAndShow(parent);
++            minecraft.setScreen(parent);
+         } catch (IOException | RuntimeException failure) {
+             setError(failure);
+         }
+@@ -294,7 +294,7 @@
+             if (source != null) KeysetClient.applyResourceTheme(source.resourceId(), source.theme());
+             else KeysetClient.applySavedTheme(theme);
+             onApplied.run();
+-            minecraft.setScreenAndShow(parent);
++            minecraft.setScreen(parent);
+         } catch (IOException | RuntimeException failure) {
+             setError(failure);
+         }
+@@ -396,8 +396,8 @@
+             } catch (IOException | RuntimeException failure) { setError(failure); }
+             return;
+         }
+-        minecraft.setScreenAndShow(new ConfirmScreen(confirmed -> {
+-            minecraft.setScreenAndShow(this);
++        minecraft.setScreen(new ConfirmScreen(confirmed -> {
++            minecraft.setScreen(this);
+             if (confirmed) deleteTheme(theme);
+         }, Component.translatable("keyset.themes_delete_title"),
+                 Component.translatable("keyset.themes_delete_prompt", theme.name()),
+@@ -523,7 +523,14 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        // Vanilla 1.21 draws a blurred world here; the screen paints its own backdrop in render().
++    }
++
++    @Override
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        if (minecraft.level == null) { renderPanorama(graphics, partialTick); renderMenuBackground(graphics); }
++        else renderTransparentBackground(graphics); // vanilla dim over the world
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 9, innerWidth, UiTheme.text());
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.appearance_presets_label"),
+@@ -531,7 +538,7 @@
+         graphics.fill(innerX, listTop - 3, innerX + innerWidth, listTop - 2, UiTheme.border());
+         graphics.fill(nameInputX, nameInputY, nameInputX + nameInputWidth, nameInputY + 20,
+                 UiTheme.widgetSurface(UiTheme.control()));
+-        graphics.outline(nameInputX, nameInputY, nameInputWidth, 20,
++        graphics.renderOutline(nameInputX, nameInputY, nameInputWidth, 20,
+                 nameBox != null && nameBox.isFocused() ? UiTheme.accent() : UiTheme.border());
+         if (themes.isEmpty()) {
+             KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.themes_empty"),
+@@ -549,7 +556,7 @@
+             KeysetWidgets.drawText(graphics, font, statusMessage, innerX, statusY,
+                     innerWidth, statusIsError ? UiTheme.red() : UiTheme.muted());
+         }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++        super.render(graphics, mouseX, mouseY, partialTick);
+     }
+ 
+     @Override
+@@ -563,7 +570,7 @@
+ 
+     @Override
+     public void onClose() {
+-        minecraft.setScreenAndShow(parent);
++        minecraft.setScreen(parent);
+     }
+ 
+     private final class ThemeRowButton extends Button {
+@@ -585,7 +592,7 @@
+         }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             if (theme == null) return;
+             int x = getX(), y = getY(), width = getWidth(), height = getHeight();
+             boolean hover = isHoveredOrFocused() && active;
+@@ -593,7 +600,7 @@
+                     selected ? UiTheme.selected() : UiTheme.control());
+             graphics.fill(x + 5, y + height - 1, x + width - 5, y + height,
+                     selected ? UiTheme.accent() : hover ? UiTheme.border() : UiTheme.row());
+-            if (active && isFocused()) graphics.outline(x, y, width, height, UiTheme.text());
++            if (active && isFocused()) graphics.renderOutline(x, y, width, height, UiTheme.text());
+ 
+             int chipSize = 13;
+             int chipGap = 3;
+@@ -606,8 +613,8 @@
+                 name = font.plainSubstrByWidth(name, Math.max(1, nameWidth - font.width("…"))) + "…";
+             }
+             int textColor = selected ? UiTheme.accentText() : UiTheme.text();
+-            graphics.text(font, name, x + 6, y + (height - font.lineHeight) / 2, textColor, false);
+-            graphics.text(font, theme.panelOpacity() + "%", opacityX,
++            graphics.drawString(font, name, x + 6, y + (height - font.lineHeight) / 2, textColor, false);
++            graphics.drawString(font, theme.panelOpacity() + "%", opacityX,
+                     y + (height - font.lineHeight) / 2, UiTheme.muted(), false);
+             int[] colors = {theme.accentColor(), theme.panelColor(), theme.boundKeyColor(),
+                     theme.conflictKeyColor(), theme.unboundKeyColor()};
+@@ -615,7 +622,7 @@
+                 int colorX = chipStart + index * (chipSize + chipGap);
+                 graphics.fill(colorX, y + (height - chipSize) / 2, colorX + chipSize,
+                         y + (height + chipSize) / 2, 0xFF000000 | colors[index]);
+-                graphics.outline(colorX, y + (height - chipSize) / 2, chipSize, chipSize, UiTheme.border());
++                graphics.renderOutline(colorX, y + (height - chipSize) / 2, chipSize, chipSize, UiTheme.border());
+             }
+         }
+     }

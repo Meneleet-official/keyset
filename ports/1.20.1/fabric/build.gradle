@@ -1,0 +1,64 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap'
+    id 'java'
+}
+
+apply from: rootProject.file('../patching.gradle')
+
+base { archivesName = 'keyset-fabric' }
+
+def generatedJava = layout.buildDirectory.dir('generated/keyset/client/java')
+def generatedResources = layout.buildDirectory.dir('generated/keyset/client/resources')
+
+tasks.register('syncClientJava', Sync) {
+    def overlay = rootProject.file('common/src/client/java')
+    from(rootProject.file('../../common/src/client/java')) {
+        exclude { element -> new File(overlay, element.relativePath.pathString).isFile() }
+    }
+    from(overlay)
+    into(generatedJava)
+    inputs.files(rootProject.file('patches/java'))
+    doLast { keysetApplyPatches(rootProject.file('patches/java'), destinationDir) }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+tasks.register('syncClientResources', Sync) {
+    def overlay = rootProject.file('common/src/client/resources')
+    from(rootProject.file('../../common/src/client/resources')) {
+        exclude { element -> new File(overlay, element.relativePath.pathString).isFile() }
+    }
+    from(overlay)
+    into(generatedResources)
+    inputs.files(rootProject.file('patches/resources'))
+    doLast { keysetApplyPatches(rootProject.file('patches/resources'), destinationDir) }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+sourceSets.main {
+    java.setSrcDirs(['src/main/java', generatedJava])
+    resources.setSrcDirs(['src/main/resources', generatedResources])
+}
+
+tasks.named('compileJava') { dependsOn 'syncClientJava' }
+tasks.named('processResources') { dependsOn 'syncClientResources' }
+tasks.named('sourcesJar') { dependsOn 'syncClientJava', 'syncClientResources' }
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    modCompileOnly("com.terraformersmc:modmenu:${modmenu_version}") { transitive = false }
+}
+
+loom {
+    mixin {
+        useLegacyMixinAp = true
+        defaultRefmapName = 'keyset.refmap.json'
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}

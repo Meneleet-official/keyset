@@ -1,0 +1,267 @@
+--- a/dev/keyset/client/KeysetScreen.java
++++ b/dev/keyset/client/KeysetScreen.java
+@@ -33,7 +33,7 @@
+ import java.util.Set;
+ import net.minecraft.client.KeyMapping;
+ import net.minecraft.client.Minecraft;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.Font;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.EditBox;
+@@ -1362,12 +1362,12 @@
+         }
+ 
+         @Override
+-        public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+-            super.extractBackground(graphics, mouseX, mouseY, partialTick);
++        public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++            super.renderBackground(graphics, mouseX, mouseY, partialTick);
+         }
+ 
+         @Override
+-        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int panelWidth = Math.max(1, Math.min(480, width - 24));
+             boolean hasContext = KeysetClient.currentContext() != null;
+             int panelHeight = Math.min(height - 32,
+@@ -1376,12 +1376,12 @@
+             int y = (height - panelHeight) / 2;
+             drawCard(graphics, x, y, panelWidth, panelHeight);
+             graphics.fill(x + 12, y + 29, x + panelWidth - 12, y + 30, UiTheme.border());
+-            graphics.text(font, Component.translatable("keyset.profile_picker_title"), x + 14, y + 13, UiTheme.text());
++            graphics.drawString(font, Component.translatable("keyset.profile_picker_title"), x + 14, y + 13, UiTheme.text());
+             if (!hasContext) {
+                 Component hint = Component.translatable("keyset.auto_profile_requires_world");
+                 drawText(graphics, hint, x + 14, y + panelHeight - 47, panelWidth - 28, UiTheme.muted());
+             }
+-            super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++            super.render(graphics, mouseX, mouseY, partialTick);
+             String activeId = KeysetClient.profiles().active() == null ? null : KeysetClient.profiles().active().id();
+             for (int i = 0; i < rows.size(); i++) {
+                 int index = scroll + i;
+@@ -1399,7 +1399,7 @@
+                 int badgeX = row.getX() + 8 + font.width(displayName) + 5;
+                 int badgeY = row.getY() + 3;
+                 rounded(graphics, badgeX, badgeY, badgeWidth, 14, 0x804A9C8C);
+-                graphics.text(font, "✓ " + badge, badgeX + 5, badgeY + 3, UiTheme.accentText(), false);
++                graphics.drawString(font, "✓ " + badge, badgeX + 5, badgeY + 3, UiTheme.accentText(), false);
+             }
+         }
+     }
+@@ -1464,7 +1464,7 @@
+     }
+ 
+     private String keyName(VirtualKey key) {
+-        return (key.mouse() ? InputConstants.Type.MOUSE : InputConstants.Type.KEYBOARD).getOrCreate(key.code()).getName();
++        return (key.mouse() ? InputConstants.Type.MOUSE : InputConstants.Type.KEYSYM).getOrCreate(key.code()).getName();
+     }
+ 
+     private void captureMappingAt(int slot) {
+@@ -1687,23 +1687,23 @@
+     }
+ 
+     @Override
+-    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+-        super.extractBackground(graphics, mouseX, mouseY, partialTick);
+-    }
+-
+-    private void drawText(GuiGraphicsExtractor graphics, Component text, int x, int y, int maxWidth, int color) {
++    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        super.renderBackground(graphics, mouseX, mouseY, partialTick);
++    }
++
++    private void drawText(GuiGraphics graphics, Component text, int x, int y, int maxWidth, int color) {
+         String value = text.getString();
+         if (font.width(value) > maxWidth) value = font.plainSubstrByWidth(value, Math.max(1, maxWidth - font.width("…"))) + "…";
+-        graphics.text(font, value, x, y, color, false);
+-    }
+-
+-    private void drawCard(GuiGraphicsExtractor graphics, int x, int y, int w, int h) {
++        graphics.drawString(font, value, x, y, color, false);
++    }
++
++    private void drawCard(GuiGraphics graphics, int x, int y, int w, int h) {
+         if (w <= 0 || h <= 0) return;
+         graphics.fill(x, y, x + w, y + h, UiTheme.panel());
+         graphics.fill(x, y, x + w, y + 1, UiTheme.border());
+     }
+ 
+-    private static void rounded(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int color) {
++    private static void rounded(GuiGraphics graphics, int x, int y, int w, int h, int color) {
+         if (w <= 0 || h <= 0) return;
+         if (w < 4 || h < 4) { graphics.fill(x, y, x + w, y + h, color); return; }
+         graphics.fill(x + 2, y, x + w - 2, y + h, color);
+@@ -1712,18 +1712,18 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+         if (singlePane) {
+             KeysetBranding.drawLogo(graphics, 8, 6, 20, 20);
+-            graphics.text(font, "KEYSET", 32, 7, 0xFFFFFFFF, true);
+-            graphics.text(font, KeysetBranding.VERSION, 32, 19, 0xFFB2B7B5, true);
++            graphics.drawString(font, "KEYSET", 32, 7, 0xFFFFFFFF, true);
++            graphics.drawString(font, KeysetBranding.VERSION, 32, 19, 0xFFB2B7B5, true);
+             graphics.fill(8, viewport.contentTop() - 2, width - 8, viewport.contentTop() - 1, UiTheme.border());
+             graphics.fill(8, viewport.footerY() - 6, width - 8, viewport.footerY() - 5, UiTheme.border());
+         } else {
+             KeysetBranding.drawLogo(graphics, 16, 17, 30, 30);
+-            graphics.text(font, "KEYSET", 53, 20, 0xFFFFFFFF, true);
+-            graphics.text(font, KeysetBranding.VERSION + "+mc26.3", 53, 36, 0xFFB2B7B5, true);
+-            graphics.text(font, Component.translatable("keyset.profile"), profileCycleButton.getX(), 12, 0xFFB2B7B5, true);
++            graphics.drawString(font, "KEYSET", 53, 20, 0xFFFFFFFF, true);
++            graphics.drawString(font, KeysetBranding.VERSION + "  /  " + KeysetBranding.MINECRAFT_VERSION, 53, 36, 0xFFB2B7B5, true);
++            graphics.drawString(font, Component.translatable("keyset.profile"), profileCycleButton.getX(), 12, 0xFFB2B7B5, true);
+             graphics.fill(16, 57, width - 16, 58, UiTheme.border());
+             graphics.fill(16, height - 48, width - 16, height - 47, UiTheme.border());
+         }
+@@ -1760,7 +1760,7 @@
+             : Component.translatable("keyset.bindings_for_key", inputLabel(virtualKeyFilter));
+         drawText(graphics, listTitle, mainX + 12, listTitleY, mainWidth - 110, UiTheme.text());
+         Component count = Component.translatable("keyset.binding_count", filteredMappings.size());
+-        graphics.text(font, count, mainX + mainWidth - 12 - font.width(count), listTitleY, UiTheme.muted(), false);
++        graphics.drawString(font, count, mainX + mainWidth - 12 - font.width(count), listTitleY, UiTheme.muted(), false);
+         }
+         int searchLeft = mainX + (singlePane ? 4 : 8);
+         int searchRight = Math.min(mainX + mainWidth - 8, searchLeft + searchBox.getWidth() + 30);
+@@ -1769,8 +1769,8 @@
+         graphics.fill(searchLeft, searchY + viewport.searchHeight() - 1, searchRight,
+             searchY + viewport.searchHeight(), searchBox.isFocused() ? UiTheme.accent() : UiTheme.border());
+         if (!singlePane) {
+-            graphics.text(font, Component.translatable("keyset.action_column"), mainX + 16, listTop - 16, UiTheme.muted(), false);
+-            if (!rowBindingButtons.isEmpty()) graphics.text(font, Component.translatable("keyset.key_column"),
++            graphics.drawString(font, Component.translatable("keyset.action_column"), mainX + 16, listTop - 16, UiTheme.muted(), false);
++            if (!rowBindingButtons.isEmpty()) graphics.drawString(font, Component.translatable("keyset.key_column"),
+                 rowBindingButtons.get(0).getX() + 5, listTop - 16, UiTheme.muted(), false);
+         }
+ 
+@@ -1817,10 +1817,10 @@
+             int legendY = summaryY - 16;
+             graphics.fill(sidebarX + 16, legendY + 2, sidebarX + 20, legendY + 6,
+                 UiTheme.keyColors(true, false, false).edge());
+-            graphics.text(font, Component.translatable("keyset.legend_assigned"), sidebarX + 26, legendY, UiTheme.muted(), false);
++            graphics.drawString(font, Component.translatable("keyset.legend_assigned"), sidebarX + 26, legendY, UiTheme.muted(), false);
+             graphics.fill(sidebarX + 140, legendY + 2, sidebarX + 144, legendY + 6,
+                 UiTheme.keyColors(false, true, false).edge());
+-            graphics.text(font, Component.translatable("keyset.legend_conflict"), sidebarX + 150, legendY, UiTheme.muted(), false);
++            graphics.drawString(font, Component.translatable("keyset.legend_conflict"), sidebarX + 150, legendY, UiTheme.muted(), false);
+         }
+         if (!singlePane) {
+         graphics.fill(sidebarX + 12, summaryY - 4, sidebarX + sidebarWidth - 12, summaryY - 3, UiTheme.border());
+@@ -1828,7 +1828,7 @@
+             drawText(graphics, Component.translatable("keyset.selection_empty"), sidebarX + 14, summaryY + 8, sidebarWidth - 28, UiTheme.text());
+             drawText(graphics, Component.translatable("keyset.selection_hint"), sidebarX + 14, summaryY + 24, sidebarWidth - 28, UiTheme.muted());
+         } else {
+-            graphics.text(font, Component.translatable(capturing ? "keyset.listening" : "keyset.selected_action"),
++            graphics.drawString(font, Component.translatable(capturing ? "keyset.listening" : "keyset.selected_action"),
+                 sidebarX + 14, summaryY + 6, UiTheme.text(), false);
+             drawText(graphics, KeysetClient.name(selectedMapping), sidebarX + 14, summaryY + 22,
+                 sidebarWidth - 212, UiTheme.text());
+@@ -1847,7 +1847,7 @@
+         Component footer = statusMessage != null ? statusMessage : Component.translatable("keyset.footer_hint");
+         if (!singlePane) drawText(graphics, footer, sidebarX + 2, height - 31, sidebarWidth - 4,
+             statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++        super.render(graphics, mouseX, mouseY, partialTick);
+         if (showCategories()) {
+             int visibleItems = modFilterMode ? searchedMods.size() : searchedCategories.size();
+             if (visibleItems == 0) {
+@@ -1862,7 +1862,7 @@
+                 int countY = button.getY() + (button.getHeight() - font.lineHeight) / 2;
+                 int color = button instanceof FlatButton flat && flat.visualState == VisualState.SELECTED
+                     ? UiTheme.accentText() : UiTheme.muted();
+-                graphics.text(font, count, countX, countY, color, false);
++                graphics.drawString(font, count, countX, countY, color, false);
+             }
+         }
+     }
+@@ -1900,18 +1900,18 @@
+         includeHeldModifier(key, modifiers, InputConstants.MOD_CONTROL, InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL);
+         includeHeldModifier(key, modifiers, InputConstants.MOD_SHIFT, InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT);
+         includeHeldModifier(key, modifiers, InputConstants.MOD_ALT, InputConstants.KEY_LALT, InputConstants.KEY_RALT);
+-        includeHeldModifier(key, modifiers, InputConstants.MOD_SUPER, InputConstants.KEY_LGUI, InputConstants.KEY_RGUI);
++        includeHeldModifier(key, modifiers, InputConstants.MOD_SUPER, InputConstants.KEY_LSUPER, InputConstants.KEY_RSUPER);
+         nativeCapture.press(key);
+         statusMessage = Component.translatable("keyset.native_release", bindingDisplay(nativeCapture.preview()));
+         refreshVisibleRows();
+     }
+ 
+     private void includeHeldModifier(String key, int modifiers, int mask, int leftCode, int rightCode) {
+-        String left = InputConstants.Type.KEYBOARD.getOrCreate(leftCode).getName();
+-        String right = InputConstants.Type.KEYBOARD.getOrCreate(rightCode).getName();
++        String left = InputConstants.Type.KEYSYM.getOrCreate(leftCode).getName();
++        String right = InputConstants.Type.KEYSYM.getOrCreate(rightCode).getName();
+         if ((modifiers & mask) != 0 && !key.equals(left) && !key.equals(right)
+                 && !nativeCapture.contains(left) && !nativeCapture.contains(right)) {
+-            nativeCapture.include(InputConstants.isKeyDown(rightCode) ? right : left);
++            nativeCapture.include(InputConstants.isKeyDown(minecraft.getWindow(), rightCode) ? right : left);
+         }
+     }
+ 
+@@ -2080,7 +2080,7 @@
+         return key == InputConstants.KEY_LSHIFT || key == InputConstants.KEY_RSHIFT
+             || key == InputConstants.KEY_LCONTROL || key == InputConstants.KEY_RCONTROL
+             || key == InputConstants.KEY_LALT || key == InputConstants.KEY_RALT
+-            || key == InputConstants.KEY_LGUI || key == InputConstants.KEY_RGUI;
++            || key == InputConstants.KEY_LSUPER || key == InputConstants.KEY_RSUPER;
+     }
+ 
+     @Override
+@@ -2183,12 +2183,12 @@
+         }
+ 
+         @Override
+-        public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+-            super.extractBackground(graphics, mouseX, mouseY, partialTick);
++        public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++            super.renderBackground(graphics, mouseX, mouseY, partialTick);
+         }
+ 
+         @Override
+-        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int panelWidth = Math.min(310, width - 20);
+             int panelHeight = 102;
+             int x = (width - panelWidth) / 2;
+@@ -2196,9 +2196,9 @@
+             drawCard(graphics, x, y, panelWidth, panelHeight);
+             graphics.fill(x + 12, y + 31, x + panelWidth - 12, y + 55, UiTheme.control());
+             graphics.fill(x + 12, y + 54, x + panelWidth - 12, y + 55, nameBox.isFocused() ? UiTheme.accent() : UiTheme.border());
+-            graphics.text(font, dialogTitle, x + 13, y + 12, UiTheme.text());
+-            if (error != null) graphics.text(font, error, x + 13, y + 87, UiTheme.red());
+-            super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++            graphics.drawString(font, dialogTitle, x + 13, y + 12, UiTheme.text());
++            if (error != null) graphics.drawString(font, error, x + 13, y + 87, UiTheme.red());
++            super.render(graphics, mouseX, mouseY, partialTick);
+         }
+     }
+ 
+@@ -2229,7 +2229,7 @@
+         }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             boolean hover = isHoveredOrFocused() && active;
+             boolean selected = visualState == VisualState.SELECTED;
+             boolean conflict = visualState == VisualState.CONFLICT || inputConflict;
+@@ -2271,7 +2271,7 @@
+                     graphics.fill(x, y + h - 2, x + w, y + h, UiTheme.accent());
+                 }
+             }
+-            if (active && isFocused()) graphics.outline(x, y, w, h, UiTheme.text());
++            if (active && isFocused()) graphics.renderOutline(x, y, w, h, UiTheme.text());
+             Font font = Minecraft.getInstance().font;
+             String label = getMessage().getString();
+             if (style == ButtonStyle.KEYCAP) {
+@@ -2287,7 +2287,7 @@
+             int textX = centered ? x + (w - font.width(label)) / 2
+                 : x + (style == ButtonStyle.SECTION ? 10 : 6);
+             int textY = y + (h - font.lineHeight) / 2;
+-            graphics.text(font, label, textX, textY, color, false);
++            graphics.drawString(font, label, textX, textY, color, false);
+         }
+     }
+ 

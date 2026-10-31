@@ -1,0 +1,99 @@
+--- a/dev/keyset/client/PersonalizationScreen.java
++++ b/dev/keyset/client/PersonalizationScreen.java
+@@ -12,7 +12,7 @@
+ import java.util.EnumMap;
+ import java.util.List;
+ import java.util.Locale;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.EditBox;
+ import net.minecraft.client.gui.components.Tooltip;
+@@ -554,7 +554,7 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 11, layout.totalInnerWidth(), UiTheme.text());
+         if (tab == Tab.LAYOUT) {
+@@ -576,10 +576,10 @@
+             int errorY = footerY - 12;
+             KeysetWidgets.drawText(graphics, font, error, innerX, errorY, layout.totalInnerWidth(), UiTheme.red());
+         }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+-    }
+-
+-    private void drawColors(GuiGraphicsExtractor graphics) {
++        super.render(graphics, mouseX, mouseY, partialTick);
++    }
++
++    private void drawColors(GuiGraphics graphics) {
+         for (HexColorField field : HexColorField.values()) {
+             int row = field.ordinal();
+             if (!isColorRowVisible(row)) continue;
+@@ -594,8 +594,8 @@
+                     UiTheme.widgetSurface(UiTheme.control()));
+             int outline = parseHex(box.getValue()) == null ? UiTheme.red()
+                     : box.isFocused() ? UiTheme.accent() : UiTheme.border();
+-            graphics.outline(colorInputX, y + 2, colorInputWidth, 20, outline);
+-            graphics.text(font, "#", colorInputX + 5, y + 7, UiTheme.muted(), false);
++            graphics.renderOutline(colorInputX, y + 2, colorInputWidth, 20, outline);
++            graphics.drawString(font, "#", colorInputX + 5, y + 7, UiTheme.muted(), false);
+         }
+         int opacityRow = COLOR_ROW_COUNT - 1;
+         if (isColorRowVisible(opacityRow)) {
+@@ -606,7 +606,7 @@
+         drawScrollBar(graphics, colorListTop, COLOR_ROW_COUNT, colorCapacity, colorScroll);
+     }
+ 
+-    private void drawScrollBar(GuiGraphicsExtractor graphics, int top, int count, int capacity, int scroll) {
++    private void drawScrollBar(GuiGraphics graphics, int top, int count, int capacity, int scroll) {
+         if (capacity >= count) return;
+         int trackHeight = capacity * COLOR_ROW_HEIGHT - 2;
+         int thumbHeight = Math.max(12, trackHeight * capacity / count);
+@@ -615,19 +615,19 @@
+         graphics.fill(innerX + innerWidth - 3, thumbY, innerX + innerWidth, thumbY + thumbHeight, UiTheme.muted());
+     }
+ 
+-    private void drawColorSample(GuiGraphicsExtractor graphics, HexColorField field,
++    private void drawColorSample(GuiGraphics graphics, HexColorField field,
+                                   UiAppearance appearance, int x, int y) {
+         if (field == HexColorField.ACCENT || field == HexColorField.PANEL) {
+             int color = field == HexColorField.ACCENT ? appearance.accentColor() : appearance.panelColor();
+             graphics.fill(x, y, x + 22, y + 20, 0xFF000000 | color);
+-            graphics.outline(x, y, 22, 20, UiTheme.border());
++            graphics.renderOutline(x, y, 22, 20, UiTheme.border());
+             return;
+         }
+         if (field == HexColorField.MOUSE_BODY) {
+             int body = 0xFF000000 | appearance.mouseBodyColor();
+             graphics.fill(x + 3, y + 1, x + 19, y + 19, body);
+             graphics.fill(x + 1, y + 5, x + 21, y + 16, body);
+-            graphics.outline(x + 1, y + 1, 20, 19, UiTheme.border());
++            graphics.renderOutline(x + 1, y + 1, 20, 19, UiTheme.border());
+             graphics.fill(x + 10, y + 3, x + 12, y + 10, UiTheme.border());
+             graphics.fill(x + 9, y + 6, x + 13, y + 9, body);
+             return;
+@@ -638,7 +638,7 @@
+         graphics.fill(x, y, x + 22, y + 19, colors.edge());
+         graphics.fill(x + 1, y + 1, x + 21, y + 18, colors.face());
+         String label = field == HexColorField.BOUND_KEY ? "A" : field == HexColorField.CONFLICT_KEY ? "!" : "-";
+-        graphics.text(font, label, x + (22 - font.width(label)) / 2, y + 5, colors.text(), false);
++        graphics.drawString(font, label, x + (22 - font.width(label)) / 2, y + 5, colors.text(), false);
+     }
+ 
+     @Override
+@@ -663,9 +663,9 @@
+         }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             drawColorSample(graphics, field, KeysetClient.appearance(), getX(), getY());
+-            if (isHoveredOrFocused()) graphics.outline(getX() - 1, getY() - 1, getWidth() + 2, getHeight() + 2,
++            if (isHoveredOrFocused()) graphics.renderOutline(getX() - 1, getY() - 1, getWidth() + 2, getHeight() + 2,
+                     UiTheme.accent());
+         }
+     }

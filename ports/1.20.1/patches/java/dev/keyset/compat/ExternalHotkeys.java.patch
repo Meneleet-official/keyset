@@ -1,0 +1,48 @@
+--- a/dev/keyset/compat/ExternalHotkeys.java
++++ b/dev/keyset/compat/ExternalHotkeys.java
+@@ -12,14 +12,13 @@
+ import java.util.Set;
+ import net.minecraft.client.KeyMapping;
+ import net.minecraft.network.chat.Component;
+-import net.minecraft.resources.Identifier;
+ import org.slf4j.LoggerFactory;
+ 
+ /** Unbound editor proxies. They never participate in vanilla key routing. */
+ public final class ExternalHotkeys {
+     private static final Map<KeyMapping, ExternalHotkey> HOTKEYS = new IdentityHashMap<>();
+-    private static final Map<String, KeyMapping.Category> CATEGORIES = new LinkedHashMap<>();
+-    private static final Map<KeyMapping.Category, Component> CATEGORY_LABELS = new LinkedHashMap<>();
++    private static final Map<String, String> CATEGORIES = new LinkedHashMap<>();
++    private static final Map<String, Component> CATEGORY_LABELS = new LinkedHashMap<>();
+     private static final List<KeyMapping> MAPPINGS = new ArrayList<>();
+     private static final Set<ExternalHotkey> DIRTY = Collections.newSetFromMap(new IdentityHashMap<>());
+     private static boolean initialized;
+@@ -32,10 +31,10 @@
+         initialized = true;
+         try {
+             for (ExternalHotkey hotkey : MalilibIntegration.discover()) {
+-                KeyMapping.Category category = CATEGORIES.computeIfAbsent(hotkey.modId(), id ->
+-                    KeyMapping.Category.register(Identifier.fromNamespaceAndPath(id, "keyset_hotkeys")));
++                String category = CATEGORIES.computeIfAbsent(hotkey.modId(), id ->
++                    "key.categories.keyset.external." + id);
+                 KeyMapping proxy = new KeyMapping("keyset.external." + hotkey.modId() + "." + hotkey.id(),
+-                    InputConstants.UNKNOWN.getValue(), category);
++                    InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), category);
+                 CATEGORY_LABELS.put(category, Component.literal(hotkey.modName()));
+                 HOTKEYS.put(proxy, hotkey);
+                 MAPPINGS.add(proxy);
+@@ -47,8 +46,12 @@
+ 
+     public static List<KeyMapping> mappings() { return List.copyOf(MAPPINGS); }
+     public static ExternalHotkey get(KeyMapping mapping) { return HOTKEYS.get(mapping); }
+-    public static Component categoryLabel(KeyMapping.Category category) {
+-        return CATEGORY_LABELS.getOrDefault(category, category.label());
++    public static KeyMapping findMapping(String name) {
++        for (KeyMapping mapping : MAPPINGS) if (mapping.getName().equals(name)) return mapping;
++        return null;
++    }
++    public static Component categoryLabel(String category) {
++        return CATEGORY_LABELS.getOrDefault(category, Component.translatable(category));
+     }
+ 
+     public static void assign(KeyMapping mapping, Binding binding) throws IOException {

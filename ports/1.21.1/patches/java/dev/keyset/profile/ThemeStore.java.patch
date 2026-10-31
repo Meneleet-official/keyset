@@ -1,0 +1,20 @@
+--- a/dev/keyset/profile/ThemeStore.java
++++ b/dev/keyset/profile/ThemeStore.java
+@@ -8,7 +8,7 @@
+ import com.google.gson.JsonObject;
+ import com.google.gson.JsonParseException;
+ import com.google.gson.JsonPrimitive;
+-import com.google.gson.Strictness;
++
+ import com.google.gson.stream.JsonReader;
+ import com.google.gson.stream.JsonToken;
+ 
+@@ -261,7 +261,7 @@
+ 
+     private static JsonElement parseStrictJson(String json) throws IOException {
+         try (JsonReader reader = new JsonReader(new StringReader(json))) {
+-            reader.setStrictness(Strictness.STRICT);
++            reader.setLenient(false);
+             JsonElement result = readJsonValue(reader);
+             if (reader.peek() != JsonToken.END_DOCUMENT) throw new IllegalArgumentException("Trailing JSON content");
+             return result;

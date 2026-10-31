@@ -1,0 +1,11 @@
+--- a/dev/keyset/editor/ChordCapture.java
++++ b/dev/keyset/editor/ChordCapture.java
+@@ -20,7 +20,7 @@
+     public Binding preview() {
+         if (keys.isEmpty()) return new Binding("key.keyboard.unknown", false, false, false);
+         var ordered = new ArrayList<>(keys);
+-        return new Binding(ordered.getFirst(), false, false, false, false, ordered.subList(1, ordered.size()));
++        return new Binding(ordered.get(0), false, false, false, false, ordered.subList(1, ordered.size()));
+     }
+     public Optional<Binding> release(String key) {
+         if (!held.remove(key) || !held.isEmpty()) return Optional.empty();

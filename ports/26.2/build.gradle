@@ -1,0 +1,53 @@
+plugins {
+    id 'base'
+    id 'net.fabricmc.fabric-loom' version '1.17.20' apply false
+    id 'net.neoforged.moddev' version '2.0.147' apply false
+}
+
+apply from: '../patching.gradle'
+def repositoryRoot = file('../..')
+def overrides = file('common/src/client/java')
+def generatedJava = layout.buildDirectory.dir('generated/common/java')
+tasks.register('prepareCommonJava', Sync) {
+    from(new File(repositoryRoot, 'common/src/client/java')) {
+        exclude { entry -> new File(overrides, entry.relativePath.pathString).isFile() }
+    }
+    from(overrides)
+    into(generatedJava)
+    inputs.files('patches')
+    doLast { keysetApplyPatches(file('patches/java'), destinationDir) }
+}
+allprojects {
+    group = 'dev.keyset'
+    version = '1.2.0+mc26.2'
+    repositories { mavenCentral() }
+}
+subprojects {
+    plugins.withId('java') {
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(25)
+            withSourcesJar()
+        }
+        tasks.withType(JavaCompile).configureEach {
+            dependsOn rootProject.tasks.named('prepareCommonJava')
+            options.encoding = 'UTF-8'
+            options.release = 25
+        }
+        tasks.withType(Jar).configureEach {
+            dependsOn rootProject.tasks.named('prepareCommonJava')
+            from(new File(repositoryRoot, 'LICENSE'))
+            from(new File(repositoryRoot, 'LICENSE-KEYBOARD-DATA.txt'))
+            preserveFileTimestamps = false
+            reproducibleFileOrder = true
+        }
+        sourceSets.main.java.srcDir(generatedJava)
+        sourceSets.main.resources.srcDir(new File(repositoryRoot, 'common/src/client/resources'))
+    }
+}
+tasks.register('collectMods', Sync) {
+    dependsOn ':fabric:assemble', ':neoforge:assemble'
+    from(project(':fabric').layout.buildDirectory.dir('libs')) { include "keyset-fabric-${project.version}.jar" }
+    from(project(':neoforge').layout.buildDirectory.dir('libs')) { include "keyset-neoforge-${project.version}.jar" }
+    into layout.buildDirectory.dir('mods')
+}
+tasks.named('build') { dependsOn 'collectMods' }

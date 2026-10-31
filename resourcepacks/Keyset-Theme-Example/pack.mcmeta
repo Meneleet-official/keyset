@@ -1,0 +1,7 @@
+{
+  "pack": {
+    "description": "Keyset resource-pack theme example",
+    "min_format": [97, 1],
+    "max_format": [97, 1]
+  }
+}

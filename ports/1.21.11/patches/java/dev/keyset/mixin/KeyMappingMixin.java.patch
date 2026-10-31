@@ -1,0 +1,14 @@
+--- a/dev/keyset/mixin/KeyMappingMixin.java
++++ b/dev/keyset/mixin/KeyMappingMixin.java
+@@ -53,11 +53,6 @@
+                 InputConstants.Type.MOUSE.getOrCreate(event.button()), event.modifiers());
+         if (result != null) cir.setReturnValue(result);
+     }
+-    @Inject(method = "matches(Lcom/mojang/blaze3d/platform/InputConstants$Key;)Z", at = @At("HEAD"), cancellable = true)
+-    private void keyset$matchesInput(InputConstants.Key key, CallbackInfoReturnable<Boolean> cir) {
+-        Boolean result = KeysetClient.matches((KeyMapping) (Object) this, key);
+-        if (result != null) cir.setReturnValue(result);
+-    }
+     @Inject(method = "click", at = @At("HEAD"), cancellable = true)
+     private static void keyset$click(InputConstants.Key key, CallbackInfo ci) {
+         if (KeysetClient.route(key, true, true)) ci.cancel();

@@ -1,0 +1,129 @@
+--- a/dev/keyset/client/KeycapRenderer.java
++++ b/dev/keyset/client/KeycapRenderer.java
+@@ -6,7 +6,7 @@
+ import dev.keyset.profile.KeyboardPresentation;
+ import dev.keyset.profile.KeyLegendMode;
+ import net.minecraft.client.gui.Font;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ 
+ /** Shared top-face label renderer for the editor keyboard and appearance preview. */
+ public final class KeycapRenderer {
+@@ -20,34 +20,34 @@
+         BitmapGlyphMetrics.reset();
+     }
+ 
+-    public static void drawLabel(GuiGraphicsExtractor graphics, Font font, String label,
++    public static void drawLabel(GuiGraphics graphics, Font font, String label,
+                                  KeycapPainter.Bounds face, int color, float minimumScale) {
+-        var bounds = font.prepareText(label, 0, 0, color, false, 0).bounds();
++        var bounds = textBounds(font, label);
+         if (bounds == null) return;
+         var fitted = KeycapLabelLayout.fitGlyphBounds(face, bounds.left(), bounds.top(), bounds.width(), bounds.height(), minimumScale);
+         if (label.codePointCount(0, label.length()) == 1
+                 && Character.UnicodeScript.of(label.codePointAt(0)) == Character.UnicodeScript.CYRILLIC) {
+-            var ink = BitmapGlyphMetrics.measure(font, label, bounds);
++            var ink = BitmapGlyphMetrics.measure(font, label);
+             var line = cyrillicLine(font, color);
+             fitted = KeycapLabelLayout.fitGlyphLine(face, ink.left(), ink.top(), ink.width(), ink.height(),
+                 line.top(), line.bottom(), minimumScale);
+         }
+         fitted.ifPresent(placement -> {
+-            graphics.pose().pushMatrix();
+-            graphics.pose().translate(placement.x(), placement.y());
+-            graphics.pose().scale(placement.scale(), placement.scale());
+-            graphics.text(font, label, 0, 0, color, false);
+-            graphics.pose().popMatrix();
++            graphics.pose().pushPose();
++            graphics.pose().translate(placement.x(), placement.y(), 0.0F);
++            graphics.pose().scale(placement.scale(), placement.scale(), 1.0F);
++            graphics.drawString(font, label, 0, 0, color, false);
++            graphics.pose().popPose();
+         });
+     }
+ 
+     /** Physical legends remain independent of translations and font resource packs. */
+-    public static void drawKey(GuiGraphicsExtractor graphics, Font font, String input, String label,
++    public static void drawKey(GuiGraphics graphics, Font font, String input, String label,
+                                KeycapPainter.Bounds face, int color, float minimumScale) {
+         drawKey(graphics, font, input, label, face, color, minimumScale, KeyboardPresentation.defaults());
+     }
+ 
+-    public static void drawKey(GuiGraphicsExtractor graphics, Font font, String input, String label,
++    public static void drawKey(GuiGraphics graphics, Font font, String input, String label,
+                                KeycapPainter.Bounds face, int color, float minimumScale,
+                                KeyboardPresentation presentation) {
+         var symbol = KeycapSymbols.forInput(input, presentation.platform());
+@@ -57,28 +57,28 @@
+             return;
+         }
+         var icon = symbol.get();
+-        var text = mode == KeyLegendMode.ICON_TEXT ? font.prepareText(label, 0, 0, color, false, 0).bounds() : null;
++        var text = mode == KeyLegendMode.ICON_TEXT ? textBounds(font, label) : null;
+         boolean stacked = text != null && (face.width() - 2f) / (icon.width() + 2 + text.width()) < .65f;
+         int groupWidth = text == null ? icon.width() : stacked ? Math.max(icon.width(), text.width()) : icon.width() + 2 + text.width();
+         int groupHeight = text == null ? icon.height() : stacked ? icon.height() + 2 + text.height() : Math.max(icon.height(), text.height());
+         KeycapLabelLayout.fit(face, groupWidth, groupHeight, minimumScale).ifPresent(placement -> {
+-            graphics.pose().pushMatrix();
+-            graphics.pose().translate(placement.x(), placement.y());
+-            graphics.pose().scale(placement.scale(), placement.scale());
+-            graphics.pose().pushMatrix();
++            graphics.pose().pushPose();
++            graphics.pose().translate(placement.x(), placement.y(), 0.0F);
++            graphics.pose().scale(placement.scale(), placement.scale(), 1.0F);
++            graphics.pose().pushPose();
+             graphics.pose().translate(stacked ? (groupWidth - icon.width()) / 2f : 0,
+-                text != null && !stacked ? (groupHeight - icon.height()) / 2f : 0);
++                text != null && !stacked ? (groupHeight - icon.height()) / 2f : 0, 0.0F);
+             icon.draw(graphics::fill, color);
+-            graphics.pose().popMatrix();
++            graphics.pose().popPose();
+             if (text != null) {
+-                graphics.pose().pushMatrix();
++                graphics.pose().pushPose();
+                 graphics.pose().translate(
+                     (stacked ? (groupWidth - text.width()) / 2f : icon.width() + 2) - text.left(),
+-                    (stacked ? icon.height() + 2 : (groupHeight - text.height()) / 2f) - text.top());
+-                graphics.text(font, label, 0, 0, color, false);
+-                graphics.pose().popMatrix();
++                    (stacked ? icon.height() + 2 : (groupHeight - text.height()) / 2f) - text.top(), 0.0F);
++                graphics.drawString(font, label, 0, 0, color, false);
++                graphics.pose().popPose();
+             }
+-            graphics.pose().popMatrix();
++            graphics.pose().popPose();
+         });
+     }
+ 
+@@ -88,17 +88,25 @@
+         int top = Integer.MAX_VALUE, bottom = Integer.MIN_VALUE;
+         // One baseline and scale envelope for base letters, accents and descenders.
+         for (String label : new String[] {"И", "Й", "Ц"}) {
+-            var ink = BitmapGlyphMetrics.measure(font, label,
+-                font.prepareText(label, 0, 0, color, false, 0).bounds());
+-            if (ink != null) {
+-                top = Math.min(top, ink.top());
+-                bottom = Math.max(bottom, ink.bottom());
+-            }
++            var ink = BitmapGlyphMetrics.measure(font, label);
++            top = Math.min(top, ink.top());
++            bottom = Math.max(bottom, ink.bottom());
+         }
+         cyrillicLine = top < bottom ? new CyrillicLine(top, bottom) : new CyrillicLine(0, font.lineHeight);
+         return cyrillicLine;
+     }
+ 
++    private static TextBounds textBounds(Font font, String label) {
++        if (label == null || label.isEmpty()) return null;
++        int codepoint = label.codePointAt(0);
++        boolean cyrillic = label.codePointCount(0, label.length()) == 1
++            && Character.UnicodeScript.of(codepoint) == Character.UnicodeScript.CYRILLIC;
++        BitmapGlyphMetrics.Ink ink = cyrillic ? BitmapGlyphMetrics.measure(font, label)
++            : new BitmapGlyphMetrics.Ink(0, 0, Math.max(1, font.width(label)), font.lineHeight);
++        return new TextBounds(ink.left(), ink.top(), ink.width(), ink.height());
++    }
++
++    private record TextBounds(int left, int top, int width, int height) {}
+     private record CyrillicLine(int top, int bottom) {}
+ }
+ 

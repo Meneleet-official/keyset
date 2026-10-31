@@ -1,0 +1,64 @@
+--- a/dev/keyset/client/KeyboardStyleScreen.java
++++ b/dev/keyset/client/KeyboardStyleScreen.java
+@@ -13,7 +13,7 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ import net.minecraft.client.Minecraft;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.Tooltip;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -227,7 +227,14 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        // Vanilla 1.21 draws a blurred world here; the screen paints its own backdrop in render().
++    }
++
++    @Override
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        if (minecraft.level == null) { renderPanorama(graphics, partialTick); renderMenuBackground(graphics); }
++        else renderTransparentBackground(graphics); // vanilla dim over the world
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         int titleWidth = Math.max(1, right - left - 96);
+         KeysetWidgets.drawText(graphics, font, title, left, top + 6, titleWidth,
+@@ -252,14 +259,14 @@
+                 KeysetClient.appearance().keyboardPresentation());
+         }
+         if (error != null) {
+-            graphics.text(font, "!", right - 93, top + 6, UiTheme.red(), false);
+-        }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++            graphics.drawString(font, "!", right - 93, top + 6, UiTheme.red(), false);
++        }
++        super.render(graphics, mouseX, mouseY, partialTick);
+     }
+ 
+     @Override
+     public void onClose() {
+-        minecraft.setScreenAndShow(parent);
++        minecraft.setScreen(parent);
+     }
+ 
+     private static Component keyName(String input, String label, KeyboardPlatform platform) {
+@@ -284,7 +291,7 @@
+         private void setSelected(boolean selected) { this.selected = selected; }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             boolean hovered = active && isHoveredOrFocused();
+             KeycapPainter.State state = new KeycapPainter.State(hovered, selected, false, false,
+                 active && isFocused(), false);
+@@ -308,7 +315,7 @@
+         private void setSelectedKey(KeyboardDiagramLayout.Cell cell) { selectedCell = cell; }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             // The selected key is rendered by the screen so the mode preview always matches the current palette.
+         }
+     }

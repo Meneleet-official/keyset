@@ -1,0 +1,22 @@
+--- a/keyset.mixins.json
++++ b/keyset.mixins.json
+@@ -2,7 +2,8 @@
+   "required": true,
+   "minVersion": "0.8",
+   "package": "dev.keyset.mixin",
+-  "compatibilityLevel": "JAVA_25",
++  "compatibilityLevel": "JAVA_17",
++  "refmap": "keyset.refmap.json",
+   "client": [
+     "OptionsMixin",
+     "MinecraftMixin",
+@@ -10,7 +11,8 @@
+     "KeyMappingMixin",
+     "KeyMappingAccessor",
+     "MinecraftServerAccessor",
+-    "LitematicaConfigMixin"
++    "LitematicaConfigMixin",
++    "KeysetHudMixin"
+   ],
+   "injectors": {
+     "defaultRequire": 1

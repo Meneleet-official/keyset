@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[24,)"
+license="ISC"
+
+[[mods]]
+modId="keyset"
+version="${version}"
+displayName="Keyset"
+authors="Meneleet, Macronux"
+description='''Visual key remapping with named hotkey profiles.'''
+displayURL="https://github.com/Einjerjar/Keyset"
+logoFile="assets/keyset/icon.png"
+
+[[dependencies.keyset]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.20.2)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.keyset]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="CLIENT"

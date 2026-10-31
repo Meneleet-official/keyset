@@ -1,0 +1,61 @@
+--- a/dev/keyset/client/KeysetWidgets.java
++++ b/dev/keyset/client/KeysetWidgets.java
+@@ -2,7 +2,7 @@
+ 
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.client.gui.Font;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.network.chat.Component;
+ 
+@@ -31,19 +31,19 @@
+         return new FlatButton(x, y, width, height, message, onPress, style);
+     }
+ 
+-    public static void drawCard(GuiGraphicsExtractor graphics, int x, int y, int width, int height) {
++    public static void drawCard(GuiGraphics graphics, int x, int y, int width, int height) {
+         if (width <= 0 || height <= 0) return;
+         graphics.fill(x, y, x + width, y + height, UiTheme.panel());
+         graphics.fill(x, y, x + width, y + 1, UiTheme.border());
+     }
+ 
+-    public static void drawText(GuiGraphicsExtractor graphics, Font font, Component text,
++    public static void drawText(GuiGraphics graphics, Font font, Component text,
+                                 int x, int y, int maxWidth, int color) {
+         String value = text.getString();
+         if (font.width(value) > maxWidth) {
+             value = font.plainSubstrByWidth(value, Math.max(1, maxWidth - font.width("…"))) + "…";
+         }
+-        graphics.text(font, value, x, y, color, false);
++        graphics.drawString(font, value, x, y, color, false);
+     }
+ 
+     public enum ButtonStyle { ACTION, PRIMARY, TAB, QUIET, ROW, BINDING }
+@@ -63,7 +63,7 @@
+         }
+ 
+         @Override
+-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             boolean hover = isHoveredOrFocused() && active;
+             int x = getX(), y = getY(), width = getWidth(), height = getHeight();
+             int color = !active ? (UiTheme.text() & 0x00FFFFFF) | 0x70000000
+@@ -91,7 +91,7 @@
+                     graphics.fill(x, y + height - 2, x + width, y + height, UiTheme.accent());
+                 }
+             }
+-            if (active && isFocused()) graphics.outline(x, y, width, height, UiTheme.text());
++            if (active && isFocused()) graphics.renderOutline(x, y, width, height, UiTheme.text());
+ 
+             Font font = Minecraft.getInstance().font;
+             int available = Math.max(1, width - 10);
+@@ -101,7 +101,7 @@
+             }
+             int textX = style == ButtonStyle.ROW ? x + 6 : x + (width - font.width(label)) / 2;
+             int textY = y + (height - font.lineHeight) / 2;
+-            graphics.text(font, label, textX, textY, color, false);
++            graphics.drawString(font, label, textX, textY, color, false);
+         }
+     }
+ }

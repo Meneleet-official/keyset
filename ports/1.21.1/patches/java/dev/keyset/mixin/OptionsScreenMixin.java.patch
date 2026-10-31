@@ -1,0 +1,14 @@
+--- a/dev/keyset/mixin/OptionsScreenMixin.java
++++ b/dev/keyset/mixin/OptionsScreenMixin.java
+@@ -19,9 +19,9 @@
+     @Inject(method = "openScreenButton", at = @At("HEAD"), cancellable = true)
+     private void keyset$replaceControlsButton(Component title, Supplier<Screen> target,
+                                                CallbackInfoReturnable<Button> cir) {
+-        if (title.equals(OptionsScreen.CONTROLS)) {
++        if (title.equals(Component.translatable("options.controls"))) {
+             cir.setReturnValue(Button.builder(Component.translatable("keyset.open"),
+-                button -> minecraft.setScreenAndShow(new KeysetScreen(this))).build());
++                button -> minecraft.setScreen(new KeysetScreen(this))).build());
+         }
+     }
+ }

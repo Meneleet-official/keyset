@@ -1,0 +1,36 @@
+--- a/dev/keyset/client/BottomRowScreen.java
++++ b/dev/keyset/client/BottomRowScreen.java
+@@ -12,7 +12,7 @@
+ import java.util.Collections;
+ import java.util.List;
+ import java.util.Set;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.client.gui.components.Tooltip;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -124,13 +124,13 @@
+     private KeysetWidgets.FlatButton button(Component label, int bx, int by, int bw, int bh, Button.OnPress action) {
+         return addRenderableWidget(KeysetWidgets.flatButton(bx, by, bw, bh, label, action, KeysetWidgets.ButtonStyle.ACTION));
+     }
+-    @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
++    @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+         KeysetWidgets.drawCard(graphics, x, y, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, innerX, y + 15, innerWidth - 74, UiTheme.text());
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.bottom_hint"), innerX, y + 64, innerWidth, UiTheme.muted());
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.bottom_fit_hint"), innerX, y + 184, innerWidth, UiTheme.muted());
+         if (error != null) KeysetWidgets.drawText(graphics, font, error, innerX, y + panelHeight - 18, innerWidth, UiTheme.red());
+-        super.extractRenderState(graphics, mouseX, mouseY, delta);
++        super.render(graphics, mouseX, mouseY, delta);
+     }
+     @Override public void onClose() { minecraft.setScreenAndShow(parent); }
+ 
+@@ -144,7 +144,7 @@
+             String override = KeyboardKeyNames.translationKey(cell.input(), KeysetClient.appearance().keyboardPresentation().platform());
+             setTooltip(Tooltip.create(override == null ? Component.translatable(cell.input()) : Component.translatable(override)));
+         }
+-        @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
++        @Override protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+             var state = new KeycapPainter.State(isHovered(), selected.equals(cell.input()), false, false, isFocused(), true);
+             var palette = UiTheme.currentPalette();
+             KeycapPainter.draw(graphics::fill, getX(), getY(), getWidth(), getHeight(), palette, state);

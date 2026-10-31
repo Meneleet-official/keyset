@@ -1,0 +1,84 @@
+plugins {
+    id 'base'
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.20' apply false
+    id 'net.neoforged.moddev' version '2.0.147' apply false
+}
+
+apply from: '../patching.gradle'
+
+group = 'dev.keyset'
+version = '1.2.0+mc1.21.11'
+
+allprojects {
+    group = rootProject.group
+    version = rootProject.version
+    repositories {
+        mavenCentral()
+        maven { url = 'https://maven.fabricmc.net/' }
+        maven { url = 'https://maven.neoforged.net/releases' }
+        maven { url = 'https://maven.terraformersmc.com/' }
+    }
+}
+
+def upstream = rootProject.file('../..')
+def generatedCommonJava = layout.buildDirectory.dir('generated/common/java')
+def generatedCommonResources = layout.buildDirectory.dir('generated/common/resources')
+
+tasks.register('generateCommonSources', Sync) {
+    into layout.buildDirectory.dir('generated/common')
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    inputs.files('patches')
+    doLast {
+        keysetApplyPatches(file('patches/java'), new File(destinationDir, 'java'))
+        keysetApplyPatches(file('patches/resources'), new File(destinationDir, 'resources'))
+    }
+
+    from(new File(upstream, 'common/src/client/java')) { into 'java' }
+    from(new File(upstream, 'common/src/client/resources')) { into 'resources' }
+
+    // Port-local source and resource files replace matching upstream paths.
+    from(layout.projectDirectory.dir('common/src/client/java')) { into 'java' }
+    from(layout.projectDirectory.dir('common/src/client/resources')) { into 'resources' }
+}
+
+subprojects {
+    plugins.withId('java') {
+        java {
+            // Minecraft 1.21.11 runs on Java 21. Keeping this as --release also
+            // lets the root wrapper run under a newer installed JDK.
+            withSourcesJar()
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 21
+            dependsOn rootProject.tasks.named('generateCommonSources')
+        }
+
+        tasks.withType(ProcessResources).configureEach {
+            dependsOn rootProject.tasks.named('generateCommonSources')
+            inputs.property 'version', project.version
+        }
+
+        tasks.withType(Jar).configureEach {
+            dependsOn rootProject.tasks.named('generateCommonSources')
+            from(rootProject.file('../../LICENSE'))
+            from(rootProject.file('../../LICENSE-KEYBOARD-DATA.txt'))
+            preserveFileTimestamps = false
+            reproducibleFileOrder = true
+        }
+    }
+}
+
+tasks.register('collectMods', Sync) {
+    dependsOn ':fabric:assemble', ':neoforge:assemble'
+    from(project(':fabric').layout.buildDirectory.dir('libs')) {
+        include "keyset-fabric-${project.version}.jar"
+    }
+    from(project(':neoforge').layout.buildDirectory.dir('libs')) {
+        include "keyset-neoforge-${project.version}.jar"
+    }
+    into layout.buildDirectory.dir('mods')
+}
+
+tasks.named('build') { dependsOn 'collectMods' }

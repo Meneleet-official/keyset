@@ -1,0 +1,88 @@
+--- a/dev/keyset/client/MouseTextureCache.java
++++ b/dev/keyset/client/MouseTextureCache.java
+@@ -15,10 +15,9 @@
+ import java.util.List;
+ import java.util.concurrent.atomic.AtomicLong;
+ import net.minecraft.client.Minecraft;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
+-import net.minecraft.client.renderer.RenderPipelines;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.renderer.texture.DynamicTexture;
+-import net.minecraft.resources.Identifier;
++import net.minecraft.resources.ResourceLocation;
+ 
+ /** Six bounded artwork layers owned by one screen, uploaded only when their pixels change. */
+ public final class MouseTextureCache implements AutoCloseable {
+@@ -28,7 +27,7 @@
+     private final MouseArtworkCache artwork = new MouseArtworkCache();
+     private final EnumMap<Layer, TextureSlot> textures = new EnumMap<>(Layer.class);
+ 
+-    public void shell(GuiGraphicsExtractor graphics, MouseDiagramLayout layout, AppearancePalette palette) {
++    public void shell(GuiGraphics graphics, MouseDiagramLayout layout, AppearancePalette palette) {
+         Rect body = layout.body(), side = layout.sideBody();
+         boolean hasSide = side.width() > 0 && side.height() > 0;
+         int x = hasSide ? Math.min(body.x(), side.x()) : body.x();
+@@ -45,7 +44,7 @@
+         draw(graphics, Layer.SHELL, image, x, y);
+     }
+ 
+-    public void button(GuiGraphicsExtractor graphics, Control control, Rect bounds, AppearancePalette palette, State state) {
++    public void button(GuiGraphics graphics, Control control, Rect bounds, AppearancePalette palette, State state) {
+         Layer layer = switch (control) {
+             case LEFT -> Layer.LEFT;
+             case RIGHT -> Layer.RIGHT;
+@@ -62,15 +61,12 @@
+         draw(graphics, layer, image, bounds.x(), bounds.y());
+     }
+ 
+-    private void draw(GuiGraphicsExtractor graphics, Layer layer, Image image, int x, int y) {
++    private void draw(GuiGraphics graphics, Layer layer, Image image, int x, int y) {
+         TextureSlot slot = textures.computeIfAbsent(layer, value -> new TextureSlot(
+-            Identifier.fromNamespaceAndPath("keyset", "generated/mouse/" + id + "/" + value.name().toLowerCase(java.util.Locale.ROOT))));
++            ResourceLocation.fromNamespaceAndPath("keyset", "generated/mouse/" + id + "/" + value.name().toLowerCase(java.util.Locale.ROOT))));
+         slot.update(image);
+-        graphics.pose().pushMatrix();
+-        graphics.pose().scale(1f / SAMPLES, 1f / SAMPLES);
+-        graphics.blit(RenderPipelines.GUI_TEXTURED, slot.location, x * SAMPLES, y * SAMPLES, 0f, 0f,
++        graphics.blit(slot.location, x * SAMPLES, y * SAMPLES, 0f, 0f,
+             image.width(), image.height(), image.width(), image.height());
+-        graphics.pose().popMatrix();
+     }
+ 
+     private static Rect local(Rect rect, int originX, int originY) {
+@@ -89,11 +85,11 @@
+     private record ButtonKey(int width, int height, AppearancePalette.KeyColors colors, int text, int mouseBody, State state) {}
+ 
+     private static final class TextureSlot implements AutoCloseable {
+-        private final Identifier location;
++        private final ResourceLocation location;
+         private DynamicTexture texture;
+         private Image uploaded;
+ 
+-        private TextureSlot(Identifier location) { this.location = location; }
++        private TextureSlot(ResourceLocation location) { this.location = location; }
+ 
+         private void update(Image image) {
+             if (uploaded == image) return;
+@@ -103,7 +99,7 @@
+                 DynamicTexture replacement = null;
+                 try {
+                     copyPixels(image, pixels);
+-                    replacement = new DynamicTexture(() -> location.toString(), pixels);
++                    replacement = new DynamicTexture(pixels);
+                     Minecraft.getInstance().getTextureManager().register(location, replacement);
+                     texture = replacement;
+                 } catch (RuntimeException | Error failure) {
+@@ -120,7 +116,11 @@
+ 
+         private static void copyPixels(Image source, NativeImage destination) {
+             for (int y = 0; y < source.height(); y++) {
+-                for (int x = 0; x < source.width(); x++) destination.setPixel(x, y, source.pixel(x, y));
++                for (int x = 0; x < source.width(); x++) {
++                    int argb = source.pixel(x, y);
++                    int abgr = argb & 0xFF00FF00 | (argb & 0x00FF0000) >>> 16 | (argb & 0x000000FF) << 16;
++                    destination.setPixelRGBA(x, y, abgr);
++                }
+             }
+         }
+ 

@@ -1,0 +1,104 @@
+plugins {
+    id 'base'
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.20' apply false
+    id 'net.neoforged.moddev' version '2.0.147' apply false
+}
+
+apply from: '../patching.gradle'
+
+group = 'dev.keyset'
+version = '1.2.0+mc1.21.1'
+
+allprojects {
+    repositories {
+        mavenCentral()
+        maven { url = 'https://maven.fabricmc.net/' }
+        maven { url = 'https://maven.terraformersmc.com/' }
+        maven { url = 'https://maven.neoforged.net/releases' }
+    }
+}
+
+def upstreamJava = rootProject.file('../../common/src/client/java')
+def upstreamResources = rootProject.file('../../common/src/client/resources')
+def overrideJava = rootProject.file('common/src/client/java')
+def overrideResources = rootProject.file('common/src/client/resources')
+
+def relativePaths = { File overlay ->
+    if (!overlay.exists()) return []
+    fileTree(overlay).files.collect { file ->
+        overlay.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+    }
+}
+
+tasks.register('syncClientJava', Sync) {
+    inputs.dir(upstreamJava)
+    inputs.files(overrideJava)
+    inputs.files('patches/java')
+    def replaced = relativePaths(overrideJava)
+    from(upstreamJava) { exclude replaced }
+    if (overrideJava.exists()) from(overrideJava)
+    into layout.buildDirectory.dir('generated/client/java')
+    doLast { keysetApplyPatches(file('patches/java'), destinationDir) }
+}
+
+tasks.register('syncClientResources', Sync) {
+    inputs.dir(upstreamResources)
+    inputs.files(overrideResources)
+    inputs.files('patches/resources')
+    def replaced = relativePaths(overrideResources)
+    from(upstreamResources) { exclude replaced }
+    if (overrideResources.exists()) from(overrideResources)
+    into layout.buildDirectory.dir('generated/client/resources')
+    doLast { keysetApplyPatches(file('patches/resources'), destinationDir) }
+}
+
+subprojects {
+    group = rootProject.group
+    version = rootProject.version
+
+    plugins.withId('java') {
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(21)
+            withSourcesJar()
+        }
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 21
+        }
+        tasks.withType(Jar).configureEach {
+            from(rootProject.file('../../LICENSE'))
+            from(rootProject.file('../../LICENSE-KEYBOARD-DATA.txt'))
+            preserveFileTimestamps = false
+            reproducibleFileOrder = true
+        }
+        tasks.withType(JavaCompile).configureEach {
+            dependsOn rootProject.tasks.named('syncClientJava')
+        }
+        tasks.withType(ProcessResources).configureEach {
+            dependsOn rootProject.tasks.named('syncClientResources')
+        }
+        tasks.named('sourcesJar') {
+            dependsOn rootProject.tasks.named('syncClientJava'), rootProject.tasks.named('syncClientResources')
+        }
+        sourceSets.main {
+            java.setSrcDirs([
+                rootProject.layout.buildDirectory.dir('generated/client/java'),
+                'src/client/java'
+            ])
+            resources.setSrcDirs([
+                rootProject.layout.buildDirectory.dir('generated/client/resources'),
+                'src/client/resources',
+                'src/main/resources'
+            ])
+        }
+    }
+}
+
+tasks.register('collectMods', Sync) {
+    dependsOn ':fabric:assemble', ':neoforge:assemble'
+    from(project(':fabric').layout.buildDirectory.dir('libs')) { include "keyset-fabric-${project.version}.jar" }
+    from(project(':neoforge').layout.buildDirectory.dir('libs')) { include "keyset-neoforge-${project.version}.jar" }
+    into layout.buildDirectory.dir('mods')
+}
+
+tasks.named('build') { dependsOn 'collectMods' }

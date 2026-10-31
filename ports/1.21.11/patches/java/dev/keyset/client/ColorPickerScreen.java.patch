@@ -1,0 +1,139 @@
+--- a/dev/keyset/client/ColorPickerScreen.java
++++ b/dev/keyset/client/ColorPickerScreen.java
+@@ -12,7 +12,7 @@
+ import java.util.Locale;
+ import java.util.function.IntConsumer;
+ import java.util.function.IntFunction;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.AbstractSliderButton;
+ import net.minecraft.client.gui.components.AbstractWidget;
+ import net.minecraft.client.gui.components.EditBox;
+@@ -221,7 +221,7 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 11, innerWidth, UiTheme.text());
+         boolean colorsVisible = !pickerLayout.pagedPreview() || !previewPage;
+@@ -238,27 +238,27 @@
+             drawPreview(graphics, rightX, chipsY, previewWidth, chipsHeight, originalColor);
+             int nextX = rightX + previewWidth + previewGap;
+             drawPreview(graphics, nextX, chipsY, rightX + rightWidth - nextX, chipsHeight, selection.rgb());
+-            graphics.text(font, ">", rightX + previewWidth + 3, chipsY + (chipsHeight - font.lineHeight) / 2,
++            graphics.drawString(font, ">", rightX + previewWidth + 3, chipsY + (chipsHeight - font.lineHeight) / 2,
+                     UiTheme.muted(), false);
+             graphics.fill(innerX, hexY, innerX + leftWidth, hexY + 20, UiTheme.widgetSurface(UiTheme.control()));
+-            graphics.outline(innerX, hexY, leftWidth, 20,
++            graphics.renderOutline(innerX, hexY, leftWidth, 20,
+                     invalidHex ? UiTheme.red() : hexBox.isFocused() ? UiTheme.accent() : UiTheme.border());
+-            graphics.text(font, "#", innerX + 5, hexY + 5, UiTheme.muted(), false);
++            graphics.drawString(font, "#", innerX + 5, hexY + 5, UiTheme.muted(), false);
+         }
+         if (invalidHex) {
+             KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.appearance_invalid_hex"),
+                     innerX, footerY - 12, innerWidth, UiTheme.red());
+         }
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+-    }
+-
+-    private void drawPreview(GuiGraphicsExtractor graphics, int x, int y, int width, int height, int rgb) {
++        super.render(graphics, mouseX, mouseY, partialTick);
++    }
++
++    private void drawPreview(GuiGraphics graphics, int x, int y, int width, int height, int rgb) {
+         graphics.fill(x, y, x + width, y + height, 0xFF000000 | rgb);
+-        graphics.outline(x, y, width, height, UiTheme.border());
++        graphics.renderOutline(x, y, width, height, UiTheme.border());
+         int foreground = AppearancePalette.contrastRatio(rgb, 0xFFFFFF)
+                 >= AppearancePalette.contrastRatio(rgb, 0) ? 0xFFFFFFFF : 0xFF000000;
+         String value = hex(rgb);
+-        graphics.text(font, value, x + (width - font.width(value)) / 2,
++        graphics.drawString(font, value, x + (width - font.width(value)) / 2,
+                 y + (height - font.lineHeight) / 2, foreground, false);
+     }
+ 
+@@ -298,7 +298,7 @@
+         }
+ 
+         @Override
+-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int thumb = thumbWidth();
+             int start = getX() + (int) Math.round((getWidth() - thumb) * value);
+             graphics.fill(getX(), getY() + 3, getRight(), getY() + 5, UiTheme.border());
+@@ -314,7 +314,7 @@
+         }
+ 
+         @Override
+-        protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int steps = Math.min(48, getWidth());
+             for (int i = 0; i < steps; i++) {
+                 double saturation = i / (double) Math.max(1, steps - 1);
+@@ -324,9 +324,9 @@
+             }
+             int markerX = getX() + (int) Math.round(selection.saturation() * (getWidth() - 1));
+             int markerY = getY() + (int) Math.round((1 - selection.brightness()) * (getHeight() - 1));
+-            graphics.outline(markerX - 3, markerY - 3, 7, 7, 0xFF000000);
+-            graphics.outline(markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
+-            graphics.outline(getX() - 1, getY() - 1, getWidth() + 2, getHeight() + 2,
++            graphics.renderOutline(markerX - 3, markerY - 3, 7, 7, 0xFF000000);
++            graphics.renderOutline(markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
++            graphics.renderOutline(getX() - 1, getY() - 1, getWidth() + 2, getHeight() + 2,
+                     isFocused() ? UiTheme.accent() : UiTheme.border());
+             handleCursor(graphics);
+         }
+@@ -378,7 +378,7 @@
+         protected void applyValue() { changeSelection(selection.withHue(Math.min(Math.nextDown(1.0), value)), true); }
+ 
+         @Override
+-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             int trackWidth = Math.max(1, getWidth() - 8);
+             int steps = Math.min(60, trackWidth);
+             for (int i = 0; i < steps; i++) {
+@@ -387,7 +387,7 @@
+                         getX() + 4 + (i + 1) * trackWidth / steps, getBottom() - 2, 0xFF000000 | rgb);
+             }
+             drawHandle(graphics, getX() + 4 + (int) Math.round(value * trackWidth), getY() + 1, getHeight() - 2);
+-            if (isFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
++            if (isFocused()) graphics.renderOutline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
+             handleCursor(graphics);
+         }
+     }
+@@ -412,11 +412,11 @@
+         protected void applyValue() { changeSelection(selection.withChannel(shift, (int) Math.round(value * 255)), true); }
+ 
+         @Override
+-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             graphics.fill(getX(), getY(), getRight(), getBottom(), UiTheme.widgetSurface(UiTheme.control()));
+-            graphics.text(font, label, getX() + 4, getY() + 2, UiTheme.text(), false);
++            graphics.drawString(font, label, getX() + 4, getY() + 2, UiTheme.text(), false);
+             String number = Integer.toString(selection.channel(shift));
+-            graphics.text(font, number, getRight() - 4 - font.width(number), getY() + 2, UiTheme.text(), false);
++            graphics.drawString(font, number, getRight() - 4 - font.width(number), getY() + 2, UiTheme.text(), false);
+             int trackWidth = Math.max(1, getWidth() - 8);
+             int steps = Math.min(32, trackWidth);
+             for (int i = 0; i < steps; i++) {
+@@ -426,14 +426,14 @@
+                         getX() + 4 + (i + 1) * trackWidth / steps, getBottom() - 2, 0xFF000000 | rgb);
+             }
+             drawHandle(graphics, getX() + 4 + (int) Math.round(value * trackWidth), getBottom() - 10, 9);
+-            if (isFocused()) graphics.outline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
++            if (isFocused()) graphics.renderOutline(getX(), getY(), getWidth(), getHeight(), UiTheme.accent());
+             handleCursor(graphics);
+         }
+     }
+ 
+-    private static void drawHandle(GuiGraphicsExtractor graphics, int centerX, int y, int height) {
++    private static void drawHandle(GuiGraphics graphics, int centerX, int y, int height) {
+         graphics.fill(centerX - 3, y, centerX + 3, y + height, 0xFF000000);
+-        graphics.outline(centerX - 2, y + 1, 4, Math.max(1, height - 2), 0xFFFFFFFF);
++        graphics.renderOutline(centerX - 2, y + 1, 4, Math.max(1, height - 2), 0xFFFFFFFF);
+     }
+ }
+ 

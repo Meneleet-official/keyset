@@ -1,0 +1,80 @@
+--- a/dev/keyset/KeysetClient.java
++++ b/dev/keyset/KeysetClient.java
+@@ -1072,7 +1072,7 @@
+         ensureLoaded();
+         if (!loaded) return;
+         long now = System.nanoTime();
+-        if (watcher.due(now) && !(Minecraft.getInstance().gui.screen() instanceof KeysetScreen screen && screen.isCapturingBindings())) {
++        if (watcher.due(now) && !(Minecraft.getInstance().screen instanceof KeysetScreen screen && screen.isCapturingBindings())) {
+             watcher.acknowledge(now);
+             try { refreshFromSharedSettings(); }
+             catch (IOException | RuntimeException failure) {
+@@ -1086,18 +1086,18 @@
+             KeyMapping mapping = KeyMapping.get(entry.getKey());
+             if (mapping == null) continue;
+             Binding chord = entry.getValue();
+-            if (chord != null && (Minecraft.getInstance().gui.screen() != null || !modifiersMatch(chord) || !platform.active(mapping))) {
++            if (chord != null && (Minecraft.getInstance().screen != null || !modifiersMatch(chord) || !platform.active(mapping))) {
+                 mapping.setDown(false);
+             }
+         }
+         while (openMapping().consumeClick()) {
+-            if (Minecraft.getInstance().gui.screen() == null) Minecraft.getInstance().setScreenAndShow(new KeysetScreen(null));
++            if (Minecraft.getInstance().screen == null) Minecraft.getInstance().setScreenAndShow(new KeysetScreen(null));
+         }
+         while (nextProfileMapping().consumeClick()) {
+-            if (Minecraft.getInstance().gui.screen() == null) cycleProfile(false);
++            if (Minecraft.getInstance().screen == null) cycleProfile(false);
+         }
+         while (previousProfileMapping().consumeClick()) {
+-            if (Minecraft.getInstance().gui.screen() == null) cycleProfile(true);
++            if (Minecraft.getInstance().screen == null) cycleProfile(true);
+         }
+         updateContextRoute();
+     }
+@@ -1108,8 +1108,8 @@
+         try {
+             switchProfile(next.id());
+             if (Minecraft.getInstance().player != null) {
+-                Minecraft.getInstance().player.sendOverlayMessage(
+-                        Component.translatable("keyset.profile_switched", next.name()));
++                Minecraft.getInstance().player.displayClientMessage(
++                        Component.translatable("keyset.profile_switched", next.name()), true);
+             }
+         } catch (IOException | RuntimeException exception) {
+             LOG.warn("Cannot switch to the next profile", exception);
+@@ -1129,8 +1129,8 @@
+         try {
+             switchProfile(profileId);
+             if (Minecraft.getInstance().player != null) {
+-                Minecraft.getInstance().player.sendOverlayMessage(
+-                        Component.translatable("keyset.profile_auto_applied", profile.name()));
++                Minecraft.getInstance().player.displayClientMessage(
++                        Component.translatable("keyset.profile_auto_applied", profile.name()), true);
+             }
+         } catch (IOException | RuntimeException exception) {
+             LOG.warn("Cannot apply the automatic profile for {}", context.label(), exception);
+@@ -1142,10 +1142,10 @@
+     }
+ 
+     private static int currentModifiers() {
+-        boolean ctrl = InputConstants.isKeyDown(InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+-        boolean shift = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
+-        boolean alt = InputConstants.isKeyDown(InputConstants.KEY_LALT) || InputConstants.isKeyDown(InputConstants.KEY_RALT);
+-        boolean command = InputConstants.isKeyDown(InputConstants.KEY_LGUI) || InputConstants.isKeyDown(InputConstants.KEY_RGUI);
++        boolean ctrl = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RCONTROL);
++        boolean shift = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RSHIFT);
++        boolean alt = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LALT) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RALT);
++        boolean command = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LSUPER) || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_RSUPER);
+         return (ctrl ? InputConstants.MOD_CONTROL : 0) | (shift ? InputConstants.MOD_SHIFT : 0)
+                 | (alt ? InputConstants.MOD_ALT : 0) | (command ? InputConstants.MOD_SUPER : 0);
+     }
+@@ -1185,7 +1185,7 @@
+         // Always allow vanilla to release a plain binding, including when the
+         // modifier was pressed after its primary key was already held.
+         if (!down && !click) return false;
+-        if (matches.isEmpty() || Minecraft.getInstance().gui.screen() != null) return false;
++        if (matches.isEmpty() || Minecraft.getInstance().screen != null) return false;
+         for (KeyMapping mapping : matches) {
+             if (click) {
+                 var access = (KeyMappingAccessor) mapping;

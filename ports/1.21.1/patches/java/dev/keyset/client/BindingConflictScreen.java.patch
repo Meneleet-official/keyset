@@ -1,0 +1,51 @@
+--- a/dev/keyset/client/BindingConflictScreen.java
++++ b/dev/keyset/client/BindingConflictScreen.java
+@@ -6,7 +6,7 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ import net.minecraft.client.KeyMapping;
+-import net.minecraft.client.gui.GuiGraphicsExtractor;
++import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.gui.components.StringWidget;
+ import net.minecraft.client.gui.components.Tooltip;
+ import net.minecraft.client.gui.screens.Screen;
+@@ -45,8 +45,8 @@
+         capacity = Math.max(1, (listBottom - listTop) / 32);
+         scroll = Math.max(0, Math.min(scroll, peers.size() - capacity));
+         for (int slot = 0; slot < capacity; slot++) {
+-            StringWidget label = new StringWidget(panelX + 14, listTop + slot * 32, 1, 15,
+-                    Component.empty(), font).setMaxWidth(panelWidth - 28);
++            StringWidget label = new StringWidget(panelX + 14, listTop + slot * 32, panelWidth - 28, 15,
++                    Component.empty(), font);
+             peerNames.add(addRenderableWidget(label));
+         }
+         int buttonWidth = Math.max(1, (panelWidth - 36) / 3);
+@@ -115,7 +115,14 @@
+     }
+ 
+     @Override
+-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        // Vanilla 1.21 draws a blurred world here; the screen paints its own backdrop in render().
++    }
++
++    @Override
++    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++        if (minecraft.level == null) { renderPanorama(graphics, partialTick); renderMenuBackground(graphics); }
++        else renderTransparentBackground(graphics); // vanilla dim over the world
+         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+         KeysetWidgets.drawText(graphics, font, title, panelX + 12, panelY + 12, panelWidth - 24, UiTheme.text());
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.conflict_action", KeysetClient.actionName(actionId)),
+@@ -136,10 +143,10 @@
+                 panelX + 12, listTop + 8, panelWidth - 24, UiTheme.muted());
+         if (error != null) KeysetWidgets.drawText(graphics, font, error, panelX + 12,
+                 panelY + panelHeight - 23, panelWidth - 24, UiTheme.red());
+-        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++        super.render(graphics, mouseX, mouseY, partialTick);
+     }
+ 
+     @Override
+-    public void onClose() { minecraft.setScreenAndShow(parent); }
++    public void onClose() { minecraft.setScreen(parent); }
+ }
+ 
