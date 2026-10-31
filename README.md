@@ -2,7 +2,7 @@
 
 **A visual keybinding manager for Minecraft.** Bind keys and mouse buttons on a live keyboard and mouse diagram, keep separate control profiles, and find conflicts before they matter.
 
-![Keyset cover](images/branding/keyset-modrinth-cover-v4.png)
+![Keyset](images/branding/keysetfon.png)
 
 Client-side only. Fabric and NeoForge.
 
