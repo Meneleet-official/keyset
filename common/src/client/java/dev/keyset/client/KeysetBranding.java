@@ -5,7 +5,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
 public final class KeysetBranding {
-    public static final String VERSION = "1.2.0";
+    public static final String VERSION = "1.2.1";
     public static final Identifier LOGO_TEXTURE = Identifier.fromNamespaceAndPath("keyset", "textures/gui/logo.png");
 
     private static final int LOGO_TEXTURE_WIDTH = 17;

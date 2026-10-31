@@ -7,7 +7,7 @@ plugins {
 apply from: '../patching.gradle'
 
 group = 'dev.keyset'
-version = '1.2.0+mc1.21.1'
+version = '1.2.1+mc1.21.1'
 
 allprojects {
     repositories {
