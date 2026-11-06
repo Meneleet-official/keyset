@@ -8,13 +8,13 @@ Client-side only. Fabric and NeoForge.
 
 ## Supported versions
 
-| Minecraft | Java | Loaders | In release 1.2.1 |
-|-----------|------|---------|------------------|
-| 26.2 | 25 | Fabric, NeoForge | yes |
-| 1.21.11 | 21 | Fabric, NeoForge | yes |
-| 1.21.1 | 21 | Fabric, NeoForge | yes |
-| 1.20.1 | 17 | Fabric, NeoForge (legacy Forge fork) | yes |
-| 26.3 | 25 | Fabric, NeoForge | yes |
+| Minecraft | Java | Loaders | Latest release |
+|-----------|------|---------|----------------|
+| 26.3 | 25 | Fabric, NeoForge | 1.3.0 |
+| 26.2 | 25 | Fabric, NeoForge | 1.3.0 |
+| 1.21.11 | 21 | Fabric, NeoForge | 1.3.0 |
+| 1.21.1 | 21 | Fabric, NeoForge | 1.3.0 |
+| 1.20.1 | 17 | Fabric, NeoForge (legacy Forge fork) | 1.2.1 |
 
 Each Minecraft version has its own JAR. Download the one that matches your exact game version and loader. Ports are built from the same sources with small per-version patches; see [`ports/README.md`](ports/README.md).
 
@@ -40,7 +40,7 @@ On Fabric, you can also open Keyset with its configuration button in Mod Menu, w
 - Open **Style -> Colors -> Themes** to apply a preset or save your current palette under a name. Export creates a portable JSON file in the shared `config/keyset/theme-transfer/` folder and copies its JSON to the clipboard. Import accepts clipboard theme JSON or files in that folder. Saved themes are kept in `themes.json` alongside the shared preferences.
 - Create, select, rename, and delete profiles. Assign **Next Key Profile** or **Previous Key Profile** to cycle through them with shortcuts.
 - Set a profile to **Auto** for a world or server. Keyset activates it the next time you join.
-- The interface follows Minecraft's GUI scale and adapts to smaller windows. Key labels use the Minecraft language, and you can select a keyboard layout manually.
+- The interface picks its own size from the window, so it stays readable and uncramped at any Minecraft GUI scale. Change it under **Style -> Interface size**, or choose **Game** to follow Minecraft's GUI scale. Key labels use the Minecraft language, and you can select a keyboard layout manually.
 - Keyset can manage Litematica and MaLiLib hotkeys when those mods are installed.
 
 The menu supports Minecraft's available languages. English and Russian have been reviewed; other translations may contain errors. Some new interface labels currently use English fallback in other locales; these keys are listed in the localization manifest.

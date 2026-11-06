@@ -1,6 +1,6 @@
 --- a/dev/keyset/client/PersonalizationScreen.java
 +++ b/dev/keyset/client/PersonalizationScreen.java
-@@ -12,7 +12,7 @@
+@@ -14,7 +14,7 @@
  import java.util.EnumMap;
  import java.util.List;
  import java.util.Locale;
@@ -9,31 +9,34 @@
  import net.minecraft.client.gui.components.Button;
  import net.minecraft.client.gui.components.EditBox;
  import net.minecraft.client.gui.components.Tooltip;
-@@ -554,7 +554,7 @@
+@@ -606,7 +606,7 @@
      }
  
      @Override
 -    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 +    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+         updateFocus(mouseX, mouseY);
          KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
          KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 11, layout.totalInnerWidth(), UiTheme.text());
-         if (tab == Tab.LAYOUT) {
-@@ -576,10 +576,10 @@
+@@ -629,7 +629,7 @@
              int errorY = footerY - 12;
              KeysetWidgets.drawText(graphics, font, error, innerX, errorY, layout.totalInnerWidth(), UiTheme.red());
          }
 -        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
--    }
--
--    private void drawColors(GuiGraphicsExtractor graphics) {
 +        super.render(graphics, mouseX, mouseY, partialTick);
-+    }
-+
+     }
+ 
+     /** The preview follows the setting row under the cursor and keeps the last one when the cursor leaves. */
+@@ -661,7 +661,7 @@
+         };
+     }
+ 
+-    private void drawColors(GuiGraphicsExtractor graphics) {
 +    private void drawColors(GuiGraphics graphics) {
          for (HexColorField field : HexColorField.values()) {
              int row = field.ordinal();
              if (!isColorRowVisible(row)) continue;
-@@ -594,8 +594,8 @@
+@@ -676,8 +676,8 @@
                      UiTheme.widgetSurface(UiTheme.control()));
              int outline = parseHex(box.getValue()) == null ? UiTheme.red()
                      : box.isFocused() ? UiTheme.accent() : UiTheme.border();
@@ -44,7 +47,7 @@
          }
          int opacityRow = COLOR_ROW_COUNT - 1;
          if (isColorRowVisible(opacityRow)) {
-@@ -606,7 +606,7 @@
+@@ -688,7 +688,7 @@
          drawScrollBar(graphics, colorListTop, COLOR_ROW_COUNT, colorCapacity, colorScroll);
      }
  
@@ -53,7 +56,7 @@
          if (capacity >= count) return;
          int trackHeight = capacity * COLOR_ROW_HEIGHT - 2;
          int thumbHeight = Math.max(12, trackHeight * capacity / count);
-@@ -615,19 +615,19 @@
+@@ -697,19 +697,19 @@
          graphics.fill(innerX + innerWidth - 3, thumbY, innerX + innerWidth, thumbY + thumbHeight, UiTheme.muted());
      }
  
@@ -76,7 +79,7 @@
              graphics.fill(x + 10, y + 3, x + 12, y + 10, UiTheme.border());
              graphics.fill(x + 9, y + 6, x + 13, y + 9, body);
              return;
-@@ -638,7 +638,7 @@
+@@ -720,7 +720,7 @@
          graphics.fill(x, y, x + 22, y + 19, colors.edge());
          graphics.fill(x + 1, y + 1, x + 21, y + 18, colors.face());
          String label = field == HexColorField.BOUND_KEY ? "A" : field == HexColorField.CONFLICT_KEY ? "!" : "-";
@@ -85,7 +88,7 @@
      }
  
      @Override
-@@ -663,9 +663,9 @@
+@@ -745,9 +745,9 @@
          }
  
          @Override

@@ -1,97 +1,35 @@
 plugins {
-    id "co.uzzu.dotenv.gradle" version "2.0.0"
-    id "architectury-plugin" version "3.4-SNAPSHOT"
-    id "dev.architectury.loom" version "0.12.0-SNAPSHOT" apply false
-    id "com.matthewprenger.cursegradle" version "1.4.0" apply false
-    id "com.modrinth.minotaur" version "2.+" apply false
+    id 'base'
+    id 'net.fabricmc.fabric-loom' version '1.17.20' apply false
+    id 'net.neoforged.moddev' version '2.0.147' apply false
 }
-
-architectury {
-    minecraft = rootProject.minecraft_version
-}
-
-subprojects {
-    apply plugin: "dev.architectury.loom"
-
-    loom {
-        silentMojangMappingsLicense()
-    }
-
-    dependencies {
-        compileOnly "org.projectlombok:lombok:${project.version_lombok}"
-        annotationProcessor "org.projectlombok:lombok:${project.version_lombok}"
-
-        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-
-        mappings loom.layered() {
-            officialMojangMappings()
-            parchment("org.parchmentmc.data:parchment-1.18.2:2022.06.26@zip")
-        }
-
-        implementation "com.google.code.gson:gson:${project.version_gson}"
-        implementation("com.google.guava:guava:${project.version_guava}")
-    }
-
-    ext {
-        publishDebug = env.DEBUG.orElse("") == "1"
-    }
-}
-
 allprojects {
-    apply plugin: "java"
-    apply plugin: "architectury-plugin"
-    apply plugin: "maven-publish"
-    apply plugin: "com.modrinth.minotaur"
-    apply plugin: "com.matthewprenger.cursegradle"
-
-    archivesBaseName = rootProject.archives_base_name
-    version = "${rootProject.mod_version}-${rootProject.mod_version_type}.${rootProject.mod_subversion}+${rootProject.minecraft_version}-${project.name}"
-    group = rootProject.maven_group
-
-    repositories {
-        maven { url 'https://maven.parchmentmc.org' }
-        maven { url "https://maven.shedaniel.me" }
-        maven { url "https://maven.terraformersmc.com" }
-        maven { url 'https://masa.dy.fi/maven' }
-        maven {
-            name = "Modrinth"
-            url = "https://api.modrinth.com/maven"
-            content {
-                includeGroup "maven.modrinth"
-            }
+    group = 'dev.keyset'
+    version = "1.3.0+mc${minecraft_version}"
+    repositories { mavenCentral() }
+}
+subprojects {
+    plugins.withId('java') {
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(25)
+            withSourcesJar()
         }
-        flatDir { dirs "./lib" }
-        mavenCentral()
-    }
-
-    tasks.withType(JavaCompile) {
-        options.encoding = "UTF-8"
-        options.release = 17
-    }
-
-    java {
-        withSourcesJar()
-    }
-
-    task copyFinal(type: Copy) {
-        print(jar)
-        if (project.name == "fabric" || project.name == "forge") {
-            from "${buildDir}/libs/keymap-${version}.jar"
-            into "${rootDir}/build/e_final/${rootProject.mod_version}-${rootProject.mod_version_type}.${rootProject.mod_subversion}/${rootProject.minecraft_version}"
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 25
+        }
+        tasks.withType(Jar).configureEach {
+            from(rootProject.file('LICENSE'))
+            from(rootProject.file('LICENSE-KEYBOARD-DATA.txt'))
+            preserveFileTimestamps = false
+            reproducibleFileOrder = true
         }
     }
-
-    build.finalizedBy copyFinal
-
-    if (project.name.startsWith(":") && project.name != ":common") {
-        kekw.dependsOn(":${project.name}:modrinth")
-        print("FAKKKK")
-    }
 }
-
-task publishAll(group: "publishing") {
-    def subs = subprojects.iterator().findAll(v -> !v.name.contains("common")).collect {
-        [":${it.name}:modrinth", ":${it.name}:curseforge"]
-    }.flatten()
-    dependsOn(subs)
+tasks.register('collectMods', Copy) {
+    dependsOn ':fabric:assemble', ':neoforge:assemble'
+    from(project(':fabric').layout.buildDirectory.dir('libs')) { include "keyset-fabric-${project.version}.jar" }
+    from(project(':neoforge').layout.buildDirectory.dir('libs')) { include "keyset-neoforge-${project.version}.jar" }
+    into layout.buildDirectory.dir('mods')
 }
+tasks.named('build') { dependsOn ':common:check', 'collectMods' }

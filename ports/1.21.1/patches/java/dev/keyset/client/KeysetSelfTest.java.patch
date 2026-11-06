@@ -1,0 +1,38 @@
+--- a/dev/keyset/client/KeysetSelfTest.java
++++ b/dev/keyset/client/KeysetSelfTest.java
+@@ -46,7 +46,7 @@
+         if (!ENABLED) return;
+         Minecraft minecraft = Minecraft.getInstance();
+         if (steps == null) {
+-            if (minecraft.gui.screen() instanceof TitleScreen && ++titleTicks > 60) {
++            if (minecraft.screen instanceof TitleScreen && ++titleTicks > 60) {
+                 original = InterfaceScale.mode();
+                 steps = buildSteps();
+                 index = 0;
+@@ -96,7 +96,7 @@
+     }
+ 
+     private static void scroll(Minecraft minecraft) {
+-        Screen screen = minecraft.gui.screen();
++        Screen screen = minecraft.screen;
+         if (screen == null) return;
+         try {
+             double x = minecraft.getWindow().getGuiScaledWidth() / 4.0, y = minecraft.getWindow().getGuiScaledHeight() / 2.0;
+@@ -111,7 +111,7 @@
+     private static void open(Minecraft minecraft, Step step) {
+         try {
+             Screen screen = step.screen().get();
+-            minecraft.setScreenAndShow(screen);
++            minecraft.setScreen(screen);
+             LOG.info("KEYSET-SELFTEST open {} ({}x{} gui)", step.name(), minecraft.getWindow().getGuiScaledWidth(),
+                 minecraft.getWindow().getGuiScaledHeight());
+         } catch (RuntimeException failure) {
+@@ -182,7 +182,7 @@
+     private static Screen inner(String name) {
+         try {
+             // Built from the editor that is on screen, as in play: an editor that was never shown has no font yet.
+-            KeysetScreen editor = Minecraft.getInstance().gui.screen() instanceof KeysetScreen shown ? shown : new KeysetScreen(null);
++            KeysetScreen editor = Minecraft.getInstance().screen instanceof KeysetScreen shown ? shown : new KeysetScreen(null);
+             Class<?> type = Class.forName("dev.keyset.client.KeysetScreen$" + name);
+             Constructor<?> constructor = type.getDeclaredConstructor(KeysetScreen.class);
+             constructor.setAccessible(true);

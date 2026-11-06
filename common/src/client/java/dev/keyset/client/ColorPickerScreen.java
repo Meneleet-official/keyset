@@ -3,8 +3,6 @@ package dev.keyset.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.keyset.editor.ColorSelection;
 import dev.keyset.editor.ColorPickerLayout;
-import dev.keyset.editor.KeyboardLayouts;
-import dev.keyset.editor.KeyboardPreviewViewport;
 import dev.keyset.profile.AppearancePalette;
 import dev.keyset.profile.UiAppearance;
 import java.util.ArrayList;
@@ -25,7 +23,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 /** A local color draft: dragging previews the color, confirmation saves it through the parent. */
-public final class ColorPickerScreen extends Screen {
+public final class ColorPickerScreen extends ScaledScreen {
     private final Screen parent;
     private final int originalColor;
     private final IntConsumer onConfirm;
@@ -37,11 +35,10 @@ public final class ColorPickerScreen extends Screen {
     private SaturationValueArea colorArea;
     private EditBox hexBox;
     private KeysetWidgets.FlatButton confirmButton;
-    private KeysetWidgets.FlatButton colorsTab, previewTab, keyboardTab, mouseTab;
+    private KeysetWidgets.FlatButton colorsTab, previewTab;
     private ColorPickerLayout pickerLayout;
-    private boolean previewPage, previewMouse;
-    private double keyboardPan;
-    private PreviewScrollbar previewScrollbar;
+    private boolean previewPage;
+    private AppearancePreviewRenderer.Focus focus = AppearancePreviewRenderer.Focus.PANEL;
     private String hexDraft;
     private boolean syncingHex;
     private boolean invalidHex;
@@ -52,8 +49,9 @@ public final class ColorPickerScreen extends Screen {
         this(parent, title, initialColor, onConfirm, null);
     }
 
-    public ColorPickerScreen withMousePreview(boolean enabled) {
-        previewMouse = enabled;
+    /** Shows only the element this color affects, before and after, instead of the whole keyboard. */
+    public ColorPickerScreen withFocus(AppearancePreviewRenderer.Focus value) {
+        focus = value;
         return this;
     }
 
@@ -70,6 +68,7 @@ public final class ColorPickerScreen extends Screen {
 
     @Override
     protected void init() {
+        InterfaceScale.apply(this);
         KeycapRenderer.resetFontMetrics();
         clearWidgets();
         channels.clear();
@@ -118,7 +117,7 @@ public final class ColorPickerScreen extends Screen {
     }
 
     private void initPreviewTabs() {
-        colorsTab = previewTab = keyboardTab = mouseTab = null;
+        colorsTab = previewTab = null;
         if (previewAppearance == null) return;
         if (pickerLayout.pagedPreview()) {
             var row = pickerLayout.pageTabs();
@@ -132,17 +131,6 @@ public final class ColorPickerScreen extends Screen {
                     previewPage = true; refreshPreviewVisibility();
                 }, KeysetWidgets.ButtonStyle.TAB));
         }
-        var row = pickerLayout.deviceTabs();
-        int tabWidth = (row.width() - 4) / 2;
-        keyboardTab = addRenderableWidget(KeysetWidgets.flatButton(row.x(), row.y(), tabWidth, row.height(),
-            Component.translatable("keyset.input_keyboard"), ignored -> {
-                previewMouse = false; refreshPreviewVisibility();
-            }, KeysetWidgets.ButtonStyle.TAB));
-        mouseTab = addRenderableWidget(KeysetWidgets.flatButton(row.x() + tabWidth + 4, row.y(),
-            row.width() - tabWidth - 4, row.height(), Component.translatable("keyset.input_mouse"), ignored -> {
-                previewMouse = true; refreshPreviewVisibility();
-            }, KeysetWidgets.ButtonStyle.TAB));
-        previewScrollbar = addRenderableWidget(new PreviewScrollbar());
     }
 
     private void refreshPreviewVisibility() {
@@ -152,15 +140,6 @@ public final class ColorPickerScreen extends Screen {
         if (colorsTab != null) {
             colorsTab.setSelected(!previewPage);
             previewTab.setSelected(previewPage);
-        }
-        if (keyboardTab != null) {
-            keyboardTab.visible = mouseTab.visible = !pickerLayout.pagedPreview() || previewPage;
-            keyboardTab.setSelected(!previewMouse);
-            mouseTab.setSelected(previewMouse);
-            var area = pickerLayout.preview();
-            var viewport = KeyboardPreviewViewport.forArea(area.width(), area.height() - 24,
-                previewAppearance.apply(selection.rgb()).keyboardFormFactor(), keyboardPan);
-            previewScrollbar.visible = keyboardTab.visible && !previewMouse && viewport.scrollbarHeight() > 0;
         }
         setFocused(null);
     }
@@ -227,8 +206,16 @@ public final class ColorPickerScreen extends Screen {
         boolean colorsVisible = !pickerLayout.pagedPreview() || !previewPage;
         if (previewAppearance != null && (!pickerLayout.pagedPreview() || previewPage)) {
             var area = pickerLayout.preview();
-            preview.drawDevice(graphics, font, area.x(), area.y() + 24, area.width(), Math.max(1, area.height() - 24),
-                previewAppearance.apply(selection.rgb()), KeyboardLayouts.forLanguage(minecraft.options.languageCode), previewMouse, keyboardPan);
+                int gap = 8, half = Math.max(1, (area.width() - gap) / 2);
+                int sampleY = area.y() + 16, sampleHeight = Math.max(1, area.height() - 16);
+                KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.color_before"), area.x() + 2,
+                    area.y() + 2, half, UiTheme.muted());
+                KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.color_after"),
+                    area.x() + half + gap + 2, area.y() + 2, half, UiTheme.text());
+                preview.drawSample(graphics, font, area.x(), sampleY, half, sampleHeight,
+                    previewAppearance.apply(originalColor), focus, false);
+                preview.drawSample(graphics, font, area.x() + half + gap, sampleY, area.width() - half - gap,
+                    sampleHeight, previewAppearance.apply(selection.rgb()), focus, true);
         }
         if (colorsVisible) {
             int previewGap = 12;
@@ -264,48 +251,6 @@ public final class ColorPickerScreen extends Screen {
 
     private static String hex(int rgb) {
         return String.format(Locale.ROOT, "%06X", rgb & 0xFFFFFF);
-    }
-
-    private final class PreviewScrollbar extends AbstractSliderButton {
-        private double dragOffset;
-        PreviewScrollbar() {
-            super(pickerLayout.preview().x() + 4, pickerLayout.preview().bottom() - 12,
-                pickerLayout.preview().width() - 8, 8, Component.translatable("keyset.preview_scroll_hint"), keyboardPan);
-            setTooltip(Tooltip.create(Component.translatable("keyset.preview_scroll_hint")));
-        }
-
-        @Override protected void updateMessage() {}
-        @Override protected void applyValue() { keyboardPan = value; }
-
-        private int thumbWidth() {
-            var area = pickerLayout.preview();
-            var viewport = KeyboardPreviewViewport.forArea(area.width(), area.height() - 24,
-                previewAppearance.apply(selection.rgb()).keyboardFormFactor(), value);
-            return Math.max(20, getWidth() * viewport.visibleWidth() / viewport.contentWidth());
-        }
-
-        @Override
-        public void onClick(MouseButtonEvent event, boolean doubleClick) {
-            int thumb = thumbWidth();
-            double start = getX() + (getWidth() - thumb) * value;
-            dragOffset = event.x() >= start && event.x() < start + thumb ? event.x() - start : thumb / 2.0;
-            setValue((event.x() - getX() - dragOffset) / Math.max(1, getWidth() - thumb));
-        }
-
-        @Override
-        protected void onDrag(MouseButtonEvent event, double deltaX, double deltaY) {
-            setValue((event.x() - getX() - dragOffset) / Math.max(1, getWidth() - thumbWidth()));
-        }
-
-        @Override
-        public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-            int thumb = thumbWidth();
-            int start = getX() + (int) Math.round((getWidth() - thumb) * value);
-            graphics.fill(getX(), getY() + 3, getRight(), getY() + 5, UiTheme.border());
-            graphics.fill(start, getY() + 1, start + thumb, getBottom() - 1,
-                isHoveredOrFocused() ? UiTheme.accent() : UiTheme.muted());
-            handleCursor(graphics);
-        }
     }
 
     private final class SaturationValueArea extends AbstractWidget {

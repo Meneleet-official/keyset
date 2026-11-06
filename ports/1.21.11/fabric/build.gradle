@@ -19,8 +19,8 @@ dependencies {
 
     // These modules expose mod translations as resources while keeping the
     // bundled API limited to the two pieces Keyset needs.
-    include implementation("net.fabricmc.fabric-api:fabric-api-base:${fabric_api_base_version}")
-    include implementation("net.fabricmc.fabric-api:fabric-resource-loader-v1:${fabric_resource_loader_version}")
+    include modImplementation("net.fabricmc.fabric-api:fabric-api-base:${fabric_api_base_version}")
+    include modImplementation("net.fabricmc.fabric-api:fabric-resource-loader-v1:${fabric_resource_loader_version}")
 }
 
 processResources {

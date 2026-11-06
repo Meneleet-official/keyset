@@ -18,7 +18,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
 /** Compares a saved source profile with the active target and selectively copies assignments. */
-public final class ProfileComparisonScreen extends Screen {
+public final class ProfileComparisonScreen extends ScaledScreen {
     private static final int ROW_HEIGHT = 31;
 
     private final Screen parent;
@@ -54,6 +54,7 @@ public final class ProfileComparisonScreen extends Screen {
 
     @Override
     protected void init() {
+        InterfaceScale.apply(this);
         KeysetClient.ensureLoaded();
         refreshModelIfChanged();
         clearWidgets();

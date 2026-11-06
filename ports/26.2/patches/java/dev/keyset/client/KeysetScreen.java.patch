@@ -1,6 +1,6 @@
 --- a/dev/keyset/client/KeysetScreen.java
 +++ b/dev/keyset/client/KeysetScreen.java
-@@ -1464,7 +1464,7 @@
+@@ -1793,7 +1793,7 @@
      }
  
      private String keyName(VirtualKey key) {
@@ -9,7 +9,7 @@
      }
  
      private void captureMappingAt(int slot) {
-@@ -1722,7 +1722,7 @@
+@@ -2106,7 +2106,7 @@
          } else {
              KeysetBranding.drawLogo(graphics, 16, 17, 30, 30);
              graphics.text(font, "KEYSET", 53, 20, 0xFFFFFFFF, true);
@@ -18,7 +18,7 @@
              graphics.text(font, Component.translatable("keyset.profile"), profileCycleButton.getX(), 12, 0xFFB2B7B5, true);
              graphics.fill(16, 57, width - 16, 58, UiTheme.border());
              graphics.fill(16, height - 48, width - 16, height - 47, UiTheme.border());
-@@ -1900,18 +1900,18 @@
+@@ -2318,18 +2318,18 @@
          includeHeldModifier(key, modifiers, InputConstants.MOD_CONTROL, InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL);
          includeHeldModifier(key, modifiers, InputConstants.MOD_SHIFT, InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT);
          includeHeldModifier(key, modifiers, InputConstants.MOD_ALT, InputConstants.KEY_LALT, InputConstants.KEY_RALT);
@@ -41,7 +41,7 @@
          }
      }
  
-@@ -2080,7 +2080,7 @@
+@@ -2593,7 +2593,7 @@
          return key == InputConstants.KEY_LSHIFT || key == InputConstants.KEY_RSHIFT
              || key == InputConstants.KEY_LCONTROL || key == InputConstants.KEY_RCONTROL
              || key == InputConstants.KEY_LALT || key == InputConstants.KEY_RALT

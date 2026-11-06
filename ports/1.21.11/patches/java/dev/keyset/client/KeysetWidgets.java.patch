@@ -31,7 +31,7 @@
 +        graphics.drawString(font, value, x, y, color, false);
      }
  
-     public enum ButtonStyle { ACTION, PRIMARY, TAB, QUIET, ROW, BINDING }
+     public enum ButtonStyle { ACTION, PRIMARY, TAB, QUIET, ROW, BINDING, LIST }
 @@ -63,7 +63,7 @@
          }
  

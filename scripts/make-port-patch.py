@@ -23,6 +23,8 @@ def main(version: str, edited: Path):
             continue
         out = repository / 'ports' / version / 'patches' / kind
         for file in sorted(p for p in source.rglob('*') if p.is_file()):
+            if file.suffix == '.png':
+                continue
             relative = file.relative_to(source).as_posix()
             upstream = base / relative
             if not upstream.is_file():

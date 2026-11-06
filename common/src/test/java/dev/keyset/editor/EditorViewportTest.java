@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class EditorViewportTest {
     @Test
     void largeMinecraftGuiScalesKeepActionsOnScreen() {
-        for (int[] size : new int[][] {{320,240}, {480,252}, {480,270}, {640,360}}) {
+        for (int[] size : new int[][] {{320,240}, {480,252}, {480,270}, {639,360}}) {
             EditorViewport layout = EditorViewport.forSize(size[0], size[1]);
             assertTrue(layout.singlePane());
             assertTrue(layout.visibleActionRows(false) >= 8, "Action list keeps eight rows with no active filters");
@@ -20,13 +20,13 @@ class EditorViewportTest {
 
     @Test
     void normalGuiSizesRetainTwoPanels() {
-        for (int[] size : new int[][] {{960,540}, {1920,1080}, {640,480}}) {
+        for (int[] size : new int[][] {{960,540}, {1920,1080}, {640,480}, {640,360}, {960,440}}) {
             assertFalse(EditorViewport.forSize(size[0], size[1]).singlePane());
         }
-        for (int height : new int[] {440, 450, 479}) {
-            assertTrue(EditorViewport.forSize(960, height).singlePane(), "Short windows use compact tabs before panels collide");
-        }
-        assertTrue(EditorViewport.forSize(640, 479).singlePane());
+        assertTrue(EditorViewport.forSize(960, 359).singlePane(), "Very short windows use compact tabs");
+        assertTrue(EditorViewport.forSize(639, 480).singlePane(), "Narrow windows use compact tabs");
+        assertTrue(EditorViewport.forSize(960, 360).rowsTop() < EditorViewport.forSize(960, 480).rowsTop(),
+            "Short windows give the title row to the action list");
         EditorViewport normal = EditorViewport.forSize(640, 480);
         assertTrue((normal.categoryListBottom() - normal.categoryListTop()) / 24 >= 2,
             "Normal two-pane layout retains two rows of categories at the breakpoint");

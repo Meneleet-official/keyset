@@ -1,15 +1,15 @@
 --- a/dev/keyset/KeysetClient.java
 +++ b/dev/keyset/KeysetClient.java
-@@ -1072,7 +1072,7 @@
-         ensureLoaded();
+@@ -1051,7 +1051,7 @@
          if (!loaded) return;
+         dev.keyset.client.KeysetSelfTest.tick();
          long now = System.nanoTime();
 -        if (watcher.due(now) && !(Minecraft.getInstance().gui.screen() instanceof KeysetScreen screen && screen.isCapturingBindings())) {
 +        if (watcher.due(now) && !(Minecraft.getInstance().screen instanceof KeysetScreen screen && screen.isCapturingBindings())) {
              watcher.acknowledge(now);
              try { refreshFromSharedSettings(); }
              catch (IOException | RuntimeException failure) {
-@@ -1086,18 +1086,18 @@
+@@ -1065,18 +1065,18 @@
              KeyMapping mapping = KeyMapping.get(entry.getKey());
              if (mapping == null) continue;
              Binding chord = entry.getValue();
@@ -32,7 +32,7 @@
          }
          updateContextRoute();
      }
-@@ -1108,8 +1108,8 @@
+@@ -1087,8 +1087,8 @@
          try {
              switchProfile(next.id());
              if (Minecraft.getInstance().player != null) {
@@ -43,7 +43,7 @@
              }
          } catch (IOException | RuntimeException exception) {
              LOG.warn("Cannot switch to the next profile", exception);
-@@ -1129,8 +1129,8 @@
+@@ -1108,8 +1108,8 @@
          try {
              switchProfile(profileId);
              if (Minecraft.getInstance().player != null) {
@@ -54,7 +54,7 @@
              }
          } catch (IOException | RuntimeException exception) {
              LOG.warn("Cannot apply the automatic profile for {}", context.label(), exception);
-@@ -1142,10 +1142,10 @@
+@@ -1121,10 +1121,10 @@
      }
  
      private static int currentModifiers() {
@@ -69,7 +69,7 @@
          return (ctrl ? InputConstants.MOD_CONTROL : 0) | (shift ? InputConstants.MOD_SHIFT : 0)
                  | (alt ? InputConstants.MOD_ALT : 0) | (command ? InputConstants.MOD_SUPER : 0);
      }
-@@ -1185,7 +1185,7 @@
+@@ -1164,7 +1164,7 @@
          // Always allow vanilla to release a plain binding, including when the
          // modifier was pressed after its primary key was already held.
          if (!down && !click) return false;

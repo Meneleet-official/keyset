@@ -7,9 +7,14 @@ import dev.keyset.profile.UiAppearance;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.packs.resources.ReloadableResourceManager;
@@ -27,6 +32,10 @@ public final class ResourcePackThemes {
     private static ResourceManager registeredManager;
     private static long appliedRevision = -1;
     private static String appliedTheme;
+    private static long autoRevision = -1;
+    /** Some loaders freeze the reload-listener list; then the pack themes are re-read on a timer instead. */
+    private static boolean polling;
+    private static long nextPoll;
     private static long retryRevision = -1, retryAfter;
     private static String retryTheme;
 
@@ -36,14 +45,19 @@ public final class ResourcePackThemes {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
         if (manager == registeredManager) return;
         if (manager instanceof ReloadableResourceManager reloadable) {
-            reloadable.registerReloadListener(new SimplePreparableReloadListener<List<Entry>>() {
-                @Override protected List<Entry> prepare(ResourceManager resources, ProfilerFiller profiler) {
-                    return read(resources);
-                }
-                @Override protected void apply(List<Entry> entries, ResourceManager resources, ProfilerFiller profiler) {
-                    publish(entries);
-                }
-            });
+            try {
+                reloadable.registerReloadListener(new SimplePreparableReloadListener<List<Entry>>() {
+                    @Override protected List<Entry> prepare(ResourceManager resources, ProfilerFiller profiler) {
+                        return read(resources);
+                    }
+                    @Override protected void apply(List<Entry> entries, ResourceManager resources, ProfilerFiller profiler) {
+                        publish(entries);
+                    }
+                });
+            } catch (UnsupportedOperationException frozen) {
+                polling = true;
+                LOG.info("Resource reload listeners are read-only here; checking pack themes periodically instead");
+            }
         }
         registeredManager = manager;
         publish(read(manager));
@@ -77,6 +91,15 @@ public final class ResourcePackThemes {
     /** Called on the client thread after shared preferences are synchronized. */
     public static void tick() {
         Snapshot current = snapshot();
+        if (polling && System.nanoTime() >= nextPoll) {
+            nextPoll = System.nanoTime() + 5_000_000_000L;
+            List<Entry> latest = read(Minecraft.getInstance().getResourceManager());
+            if (!latest.equals(current.entries())) {
+                publish(latest);
+                current = snapshot;
+            }
+        }
+        autoApply(current);
         String id = KeysetClient.resourceThemeId();
         if (appliedRevision == current.revision() && Objects.equals(id, appliedTheme)) return;
         if (retryRevision == current.revision() && Objects.equals(id, retryTheme) && System.nanoTime() < retryAfter) return;
@@ -94,6 +117,51 @@ public final class ResourcePackThemes {
         appliedRevision = current.revision();
         appliedTheme = id;
         retryRevision = -1;
+    }
+
+    /**
+     * A theme that a resource pack newly provides is applied immediately. "New" means it was not in the set
+     * remembered from the previous run or reload, so a theme the player later changed by hand is not forced back.
+     */
+    private static void autoApply(Snapshot current) {
+        if (autoRevision == current.revision()) return;
+        autoRevision = current.revision();
+        Path file = KeysetClient.themeTransferDirectory().getParent().resolve("resource-themes-present.txt");
+        Set<String> previous = new HashSet<>();
+        try {
+            if (Files.isRegularFile(file)) previous.addAll(Files.readAllLines(file, StandardCharsets.UTF_8));
+        } catch (IOException | RuntimeException failure) {
+            LOG.warn("Cannot read the remembered resource-pack themes", failure);
+        }
+        List<Entry> fresh = new ArrayList<>();
+        Set<String> present = new TreeSet<>();
+        for (Entry entry : current.entries()) {
+            String signature = signature(entry);
+            present.add(signature);
+            if (!previous.contains(signature)) fresh.add(entry);
+        }
+        if (!present.equals(previous)) {
+            try {
+                Files.createDirectories(file.getParent());
+                Files.write(file, present, StandardCharsets.UTF_8);
+            } catch (IOException | RuntimeException failure) {
+                LOG.warn("Cannot remember the resource-pack themes", failure);
+            }
+        }
+        if (fresh.isEmpty()) return;
+        Entry pick = fresh.get(fresh.size() - 1);
+        try {
+            KeysetClient.applyResourceTheme(pick.resourceId(), pick.theme());
+        } catch (IOException | RuntimeException failure) {
+            LOG.warn("Cannot apply resource-pack theme {}", pick.resourceId(), failure);
+        }
+    }
+
+    private static String signature(Entry entry) {
+        SavedTheme theme = entry.theme();
+        return entry.resourceId() + "|" + String.format("%06x%06x%d%06x%06x%06x%06x", theme.accentColor(),
+            theme.panelColor(), theme.panelOpacity(), theme.boundKeyColor(), theme.conflictKeyColor(),
+            theme.unboundKeyColor(), theme.mouseBodyColor());
     }
 
     public static boolean samePalette(UiAppearance first, UiAppearance second) {

@@ -2,10 +2,12 @@ package dev.keyset.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.keyset.KeysetClient;
+import dev.keyset.editor.EditorScale;
 import dev.keyset.editor.KeyboardLayouts;
 import dev.keyset.editor.PersonalizationLayout;
 import dev.keyset.profile.AppearancePreset;
 import dev.keyset.profile.KeyboardFormFactor;
+import dev.keyset.profile.KeyboardPlatform;
 import dev.keyset.profile.UiAppearance;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,13 +24,19 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 /** Controls the keyboard editor's size, input position, and color palette. */
-public final class PersonalizationScreen extends Screen {
+public final class PersonalizationScreen extends ScaledScreen {
     private static final int COLOR_ROW_HEIGHT = 26;
     private static final int COLOR_ROW_COUNT = HexColorField.values().length + 1;
     private static final String[] LAYOUT_LABELS = {"keyset.appearance_input_label", "keyset.appearance_keyboard_scale_label",
             "keyset.appearance_mouse_scale_label", "keyset.appearance_row_height_label",
-            "keyset.appearance_keyboard_format", "keyset.appearance_legends_label",
-            "keyset.appearance_bottom_row_label"};
+            "keyset.appearance_keyboard_format", "keyset.appearance_platform_label",
+            "keyset.appearance_legends_label", "keyset.appearance_ui_size_label"};
+    private static final AppearancePreviewRenderer.Focus[] FOCUS_BY_ROW = {
+            AppearancePreviewRenderer.Focus.LAYOUT, AppearancePreviewRenderer.Focus.KEYBOARD,
+            AppearancePreviewRenderer.Focus.MOUSE, AppearancePreviewRenderer.Focus.ROWS,
+            AppearancePreviewRenderer.Focus.KEYBOARD, AppearancePreviewRenderer.Focus.KEYBOARD,
+            AppearancePreviewRenderer.Focus.KEYBOARD, AppearancePreviewRenderer.Focus.LAYOUT};
+    private static final int[] SCALES = {UiAppearance.AUTO_SCALE, 60, 80, 100};
 
     private final Screen parent;
     private Tab tab = Tab.LAYOUT;
@@ -44,15 +52,17 @@ public final class PersonalizationScreen extends Screen {
     private PersonalizationLayout layout;
     private final AppearancePreviewRenderer preview = new AppearancePreviewRenderer();
     private final List<LayoutControl> layoutControls = new ArrayList<>();
-    private int layoutScroll, layoutCapacity, layoutControlX;
+    private int layoutScroll, layoutCapacity, layoutControlX, previewScroll;
     private int panelX, panelY, panelWidth, panelHeight, contentY, footerY, innerX, innerWidth;
     private int colorListTop, colorListBottom, colorCapacity, colorScroll, colorInputX, colorInputWidth, opacityInputX;
     private KeysetWidgets.FlatButton layoutTab, colorsTab, leftButton, rightButton,
             opacityMinusButton, opacityValueButton, opacityPlusButton, themesButton;
-    private final KeysetWidgets.FlatButton[] scaleButtons = new KeysetWidgets.FlatButton[3];
-    private final KeysetWidgets.FlatButton[] mouseScaleButtons = new KeysetWidgets.FlatButton[3];
+    private final KeysetWidgets.FlatButton[] scaleButtons = new KeysetWidgets.FlatButton[SCALES.length];
+    private final KeysetWidgets.FlatButton[] mouseScaleButtons = new KeysetWidgets.FlatButton[SCALES.length];
     private final KeysetWidgets.FlatButton[] rowHeightButtons = new KeysetWidgets.FlatButton[3];
     private final KeysetWidgets.FlatButton[] formButtons = new KeysetWidgets.FlatButton[KeyboardFormFactor.values().length];
+    private final KeysetWidgets.FlatButton[] platformButtons = new KeysetWidgets.FlatButton[KeyboardPlatform.values().length];
+    private AppearancePreviewRenderer.Focus focus = AppearancePreviewRenderer.Focus.LAYOUT;
 
     public PersonalizationScreen(Screen parent) {
         super(Component.translatable("keyset.appearance_title"));
@@ -61,6 +71,7 @@ public final class PersonalizationScreen extends Screen {
 
     @Override
     protected void init() {
+        InterfaceScale.apply(this);
         KeycapRenderer.resetFontMetrics();
         KeysetClient.ensureLoaded();
         clearWidgets();
@@ -111,7 +122,7 @@ public final class PersonalizationScreen extends Screen {
 
     private void initLayout(UiAppearance appearance) {
         int gap = 4;
-        int controlsWidth = Math.min(180, Math.max(150, innerWidth / 2));
+        int controlsWidth = Math.min(236, Math.max(150, innerWidth * 3 / 5));
         layoutControlX = innerX + innerWidth - controlsWidth - 7;
         int half = Math.max(1, (controlsWidth - gap) / 2);
         leftButton = layoutButton(0, Component.translatable("keyset.appearance_input_left"), layoutControlX,
@@ -123,19 +134,16 @@ public final class PersonalizationScreen extends Screen {
 
         int itemGap = 4;
         int itemWidth = Math.max(1, (controlsWidth - 2 * itemGap) / 3);
-        int[] scales = {60, 80, 100};
-        for (int i = 0; i < scales.length; i++) {
-            int scale = scales[i];
-            scaleButtons[i] = layoutButton(1, Component.translatable("keyset.appearance_percent", Integer.toString(scale)),
-                    layoutControlX + i * (itemWidth + itemGap),
-                    i == 2 ? controlsWidth - 2 * (itemWidth + itemGap) : itemWidth, ignored -> setKeyboardScale(scale));
+        int scaleWidth = Math.max(1, (controlsWidth - (SCALES.length - 1) * itemGap) / SCALES.length);
+        for (int i = 0; i < SCALES.length; i++) {
+            int scale = SCALES[i];
+            Component label = scale == UiAppearance.AUTO_SCALE ? Component.translatable("keyset.appearance_auto")
+                    : Component.translatable("keyset.appearance_percent", Integer.toString(scale));
+            int buttonX = layoutControlX + i * (scaleWidth + itemGap);
+            int buttonWidth = i == SCALES.length - 1 ? layoutControlX + controlsWidth - buttonX : scaleWidth;
+            scaleButtons[i] = layoutButton(1, label, buttonX, buttonWidth, ignored -> setKeyboardScale(scale));
             scaleButtons[i].setSelected(scale == appearance.keyboardScale());
-
-            mouseScaleButtons[i] = layoutButton(2,
-                    Component.translatable("keyset.appearance_percent", Integer.toString(scale)),
-                    layoutControlX + i * (itemWidth + itemGap),
-                    i == 2 ? controlsWidth - 2 * (itemWidth + itemGap) : itemWidth,
-                    ignored -> setMouseScale(scale));
+            mouseScaleButtons[i] = layoutButton(2, label, buttonX, buttonWidth, ignored -> setMouseScale(scale));
             mouseScaleButtons[i].setSelected(scale == appearance.mouseScale());
         }
 
@@ -147,17 +155,39 @@ public final class PersonalizationScreen extends Screen {
                     i == 2 ? controlsWidth - 2 * (itemWidth + itemGap) : itemWidth, ignored -> setRowHeight(rowHeight));
             rowHeightButtons[i].setSelected(rowHeight == appearance.rowHeight());
         }
-        int formWidth = (controlsWidth - 9) / 4;
+        int formWidth = Math.max(1, (controlsWidth - 3 * (formButtons.length - 1)) / formButtons.length);
         for (int i = 0; i < formButtons.length; i++) {
             KeyboardFormFactor form = KeyboardFormFactor.values()[i];
-            formButtons[i] = layoutButton(4, Component.literal(form.label()), layoutControlX + i * (formWidth + 3),
-                    i == 3 ? controlsWidth - i * (formWidth + 3) : formWidth, ignored -> setFormFactor(form));
+            Component formLabel = form == KeyboardFormFactor.AUTO ? Component.translatable("keyset.appearance_auto")
+                    : Component.literal(form.label());
+            int formX = layoutControlX + i * (formWidth + 3);
+            formButtons[i] = layoutButton(4, formLabel, formX,
+                    i == formButtons.length - 1 ? layoutControlX + controlsWidth - formX : formWidth,
+                    ignored -> setFormFactor(form));
             formButtons[i].setSelected(form == appearance.keyboardFormFactor());
         }
-        layoutButton(5, Component.translatable("keyset.appearance_legends_open"), layoutControlX,
+        KeyboardPlatform currentPlatform = appearance.keyboardPresentation().platform();
+        int platformWidth = Math.max(1, (controlsWidth - 3 * (platformButtons.length - 1)) / platformButtons.length);
+        for (int i = 0; i < platformButtons.length; i++) {
+            KeyboardPlatform platform = KeyboardPlatform.values()[i];
+            int platformX = layoutControlX + i * (platformWidth + 3);
+            platformButtons[i] = layoutButton(5, Component.translatable(platform.translationKey()), platformX,
+                    i == platformButtons.length - 1 ? layoutControlX + controlsWidth - platformX : platformWidth,
+                    ignored -> setPlatform(platform));
+            platformButtons[i].setSelected(platform == currentPlatform);
+        }
+        layoutButton(6, Component.translatable("keyset.appearance_legends_open"), layoutControlX,
                 controlsWidth, ignored -> minecraft.setScreenAndShow(new KeyboardStyleScreen(this)));
-        layoutButton(6, Component.translatable("keyset.appearance_bottom_row_open"), layoutControlX,
-                controlsWidth, ignored -> minecraft.setScreenAndShow(new BottomRowScreen(this)));
+        EditorScale.Mode[] sizes = EditorScale.Mode.values();
+        int sizeWidth = Math.max(1, (controlsWidth - 3 * (sizes.length - 1)) / sizes.length);
+        for (EditorScale.Mode size : sizes) {
+            int sizeX = layoutControlX + size.ordinal() * (sizeWidth + 3);
+            Component sizeLabel = size == EditorScale.Mode.AUTO ? Component.translatable("keyset.appearance_auto")
+                    : Component.translatable("keyset.ui_size." + size.name().toLowerCase(Locale.ROOT));
+            layoutButton(7, sizeLabel, sizeX, size.ordinal() == sizes.length - 1
+                    ? layoutControlX + controlsWidth - sizeX : sizeWidth, ignored -> setInterfaceSize(size))
+                    .setSelected(size == InterfaceScale.mode());
+        }
         layoutCapacity = Math.max(1, Math.min(LAYOUT_LABELS.length,
                 (layout.settingsBottom() - contentY) / COLOR_ROW_HEIGHT));
         layoutScroll = Math.max(0, Math.min(layoutScroll, LAYOUT_LABELS.length - layoutCapacity));
@@ -208,7 +238,7 @@ public final class PersonalizationScreen extends Screen {
         opacityValueButton = addButton(Component.translatable("keyset.appearance_opacity_percent",
                 Integer.toString(appearance.panelOpacity())),
                 opacityInputX + controlWidth + 2, colorListTop, valueWidth, 20,
-                ignored -> {}, KeysetWidgets.ButtonStyle.QUIET);
+                ignored -> {}, KeysetWidgets.ButtonStyle.LIST);
         opacityPlusButton = addButton(Component.literal("+"), opacityInputX + opacityWidth - controlWidth, colorListTop,
                 controlWidth, 20, ignored -> adjustOpacity(5));
         updateColorViewport();
@@ -313,7 +343,7 @@ public final class PersonalizationScreen extends Screen {
                         case UNBOUND_KEY -> unboundKeyDraft = value;
                     }
                     updateHex(field);
-                }, color -> previewColor(field, color)).withMousePreview(field == HexColorField.MOUSE_BODY));
+                }, color -> previewColor(field, color)).withFocus(focusFor(field)));
     }
 
     private UiAppearance previewColor(HexColorField field, int color) {
@@ -420,14 +450,14 @@ public final class PersonalizationScreen extends Screen {
         UiAppearance current = KeysetClient.appearance();
         if (update(appearance(scale, current.rowHeight(), current.inputOnRight(),
                 current.accentColor(), current.panelColor(), current.panelOpacity()))) {
-            for (int i = 0; i < scaleButtons.length; i++) scaleButtons[i].setSelected(new int[]{60, 80, 100}[i] == scale);
+            for (int i = 0; i < scaleButtons.length; i++) scaleButtons[i].setSelected(SCALES[i] == scale);
         }
     }
 
     private void setMouseScale(int scale) {
         if (update(KeysetClient.appearance().withMouseScale(scale))) {
             for (int i = 0; i < mouseScaleButtons.length; i++) {
-                mouseScaleButtons[i].setSelected(new int[]{60, 80, 100}[i] == scale);
+                mouseScaleButtons[i].setSelected(SCALES[i] == scale);
             }
         }
     }
@@ -437,6 +467,20 @@ public final class PersonalizationScreen extends Screen {
         if (update(appearance(current.keyboardScale(), rowHeight, current.inputOnRight(),
                 current.accentColor(), current.panelColor(), current.panelOpacity()))) {
             for (int i = 0; i < rowHeightButtons.length; i++) rowHeightButtons[i].setSelected(new int[]{18, 25, 32}[i] == rowHeight);
+        }
+    }
+
+    private void setInterfaceSize(EditorScale.Mode size) {
+        InterfaceScale.setMode(size);
+        init();
+    }
+
+    private void setPlatform(KeyboardPlatform platform) {
+        UiAppearance current = KeysetClient.appearance();
+        if (update(current.withKeyboardPresentation(current.keyboardPresentation().withPlatform(platform)))) {
+            for (int i = 0; i < platformButtons.length; i++) {
+                platformButtons[i].setSelected(KeyboardPlatform.values()[i] == platform);
+            }
         }
     }
 
@@ -479,6 +523,7 @@ public final class PersonalizationScreen extends Screen {
     private void selectTab(Tab next) {
         if (tab == next) return;
         tab = next;
+        focus = next == Tab.LAYOUT ? AppearancePreviewRenderer.Focus.LAYOUT : AppearancePreviewRenderer.Focus.ALL;
         colorScroll = 0;
         init();
     }
@@ -507,6 +552,13 @@ public final class PersonalizationScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        var area = layout.preview();
+        if (focus == AppearancePreviewRenderer.Focus.ALL && area.height() > 80 && mouseX >= area.x() && mouseX < area.x() + area.width()
+                && mouseY >= area.y() && mouseY < area.y() + area.height()) {
+            int max = Math.max(0, AppearancePreviewRenderer.contentHeight(area.width()) - area.height());
+            previewScroll = Math.max(0, Math.min(max, previewScroll - (int) Math.signum(scrollY) * 24));
+            return true;
+        }
         if (mouseX < innerX || mouseX >= innerX + innerWidth
                 || mouseY < contentY || mouseY >= layout.settingsBottom()) {
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -555,6 +607,7 @@ public final class PersonalizationScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        updateFocus(mouseX, mouseY);
         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
         KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 11, layout.totalInnerWidth(), UiTheme.text());
         if (tab == Tab.LAYOUT) {
@@ -570,13 +623,42 @@ public final class PersonalizationScreen extends Screen {
             drawColors(graphics);
         }
         var area = layout.preview();
-        preview.draw(graphics, font, area.x(), area.y(), area.width(), area.height(), KeysetClient.appearance(),
-                KeyboardLayouts.forLanguage(minecraft.options.languageCode));
+        if (area.height() > 0) preview.draw(graphics, font, area.x(), area.y(), area.width(), area.height(), KeysetClient.appearance(),
+                KeyboardLayouts.forLanguage(minecraft.options.languageCode), focus, previewScroll);
         if (error != null) {
             int errorY = footerY - 12;
             KeysetWidgets.drawText(graphics, font, error, innerX, errorY, layout.totalInnerWidth(), UiTheme.red());
         }
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+    }
+
+    /** The preview follows the setting row under the cursor and keeps the last one when the cursor leaves. */
+    private void updateFocus(int mouseX, int mouseY) {
+        if (mouseX < innerX || mouseX >= innerX + innerWidth) return;
+        if (tab == Tab.LAYOUT) {
+            int row = layoutScroll + (mouseY - contentY) / COLOR_ROW_HEIGHT;
+            if (mouseY >= contentY && mouseY < layout.settingsBottom() && row >= layoutScroll
+                    && row < Math.min(LAYOUT_LABELS.length, layoutScroll + layoutCapacity)) {
+                focus = FOCUS_BY_ROW[row];
+            }
+            return;
+        }
+        if (mouseY < colorListTop || mouseY >= colorListBottom) return;
+        int row = colorScroll + (mouseY - colorListTop) / COLOR_ROW_HEIGHT;
+        if (row < 0 || row >= COLOR_ROW_COUNT) return;
+        focus = row >= HexColorField.values().length ? AppearancePreviewRenderer.Focus.PANEL
+                : focusFor(HexColorField.values()[row]);
+    }
+
+    private static AppearancePreviewRenderer.Focus focusFor(HexColorField field) {
+        return switch (field) {
+            case ACCENT -> AppearancePreviewRenderer.Focus.ACCENT;
+            case PANEL -> AppearancePreviewRenderer.Focus.PANEL;
+            case MOUSE_BODY -> AppearancePreviewRenderer.Focus.MOUSE;
+            case BOUND_KEY -> AppearancePreviewRenderer.Focus.BOUND;
+            case CONFLICT_KEY -> AppearancePreviewRenderer.Focus.CONFLICT;
+            case UNBOUND_KEY -> AppearancePreviewRenderer.Focus.FREE;
+        };
     }
 
     private void drawColors(GuiGraphicsExtractor graphics) {

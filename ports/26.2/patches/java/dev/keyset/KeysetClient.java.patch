@@ -1,6 +1,6 @@
 --- a/dev/keyset/KeysetClient.java
 +++ b/dev/keyset/KeysetClient.java
-@@ -1142,10 +1142,10 @@
+@@ -1121,10 +1121,10 @@
      }
  
      private static int currentModifiers() {

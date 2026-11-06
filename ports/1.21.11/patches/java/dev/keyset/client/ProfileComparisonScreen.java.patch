@@ -9,7 +9,7 @@
  import net.minecraft.client.gui.components.Tooltip;
  import net.minecraft.client.gui.screens.Screen;
  import net.minecraft.client.input.KeyEvent;
-@@ -299,16 +299,16 @@
+@@ -300,16 +300,16 @@
      }
  
      @Override
@@ -33,7 +33,7 @@
          int summaryX = Math.max(150, width - 225);
          KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_summary",
              differences.size(), selectedActionIds.size()), summaryX, 20,
-@@ -356,7 +356,7 @@
+@@ -357,7 +357,7 @@
              KeysetWidgets.drawText(graphics, font, statusMessage, 18, height - 27,
                  Math.max(1, applyButton.getX() - 24), statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
          }

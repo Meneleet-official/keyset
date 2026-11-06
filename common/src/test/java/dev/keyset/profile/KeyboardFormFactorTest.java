@@ -16,9 +16,11 @@ class KeyboardFormFactorTest {
     }
 
     @Test
-    void missingOrUnknownIdsFallBackToFullSize() {
-        assertEquals(KeyboardFormFactor.FULL, KeyboardFormFactor.fromId(null));
-        assertEquals(KeyboardFormFactor.FULL, KeyboardFormFactor.fromId("future-size"));
+    void missingOrUnknownIdsFallBackToAutomaticSize() {
+        assertEquals(KeyboardFormFactor.AUTO, KeyboardFormFactor.fromId(null));
+        assertEquals(KeyboardFormFactor.AUTO, KeyboardFormFactor.fromId("future-size"));
+        assertEquals(KeyboardFormFactor.FULL, KeyboardFormFactor.AUTO.resolve(1000, 400));
+        assertEquals(KeyboardFormFactor.COMPACT_60, KeyboardFormFactor.AUTO.resolve(200, 400));
         assertEquals(KeyboardFormFactor.TKL, KeyboardFormFactor.fromId(" TKL "));
     }
 }

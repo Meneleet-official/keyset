@@ -6,12 +6,20 @@ import dev.keyset.editor.KeyboardKeyNames;
 import dev.keyset.editor.KeyboardLayouts;
 import dev.keyset.editor.KeycapPainter;
 import dev.keyset.profile.KeyLegendMode;
+import dev.keyset.profile.KeyboardBottomRow;
+import dev.keyset.profile.KeyboardFormFactor;
 import dev.keyset.profile.KeyboardPlatform;
 import dev.keyset.profile.KeyboardPresentation;
 import dev.keyset.profile.UiAppearance;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -19,189 +27,294 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-/** Clickable, per-key legend editor opened from personalization. */
-public final class KeyboardStyleScreen extends Screen {
-    private static final String FN_INPUT = "key.keyboard.fn";
-    private static final int PANEL_MARGIN = 6;
-    private static final int HEADER_HEIGHT = 20;
-    private static final int PLATFORM_HEIGHT = 18;
-    private static final int SELECTED_HEIGHT = 16;
-    private static final int MODE_HEIGHT = 20;
+/**
+ * Key legends and the bottom row, without a full keyboard: only the keys whose legend can actually change
+ * are listed (left/right twins share one row), and the bottom row is a single strip of its own keys.
+ */
+public final class KeyboardStyleScreen extends ScaledScreen {
+    private static final String P = "key.keyboard.";
+    private static final Set<String> BOTTOM_INPUTS = Set.of(P + "fn", P + "left.control", P + "right.control",
+        P + "left.win", P + "right.win", P + "left.alt", P + "right.alt", P + "space");
+    /** Keys whose legend can be shown as text, an icon, or both; twins and clusters are edited together. */
+    private static final List<List<String>> GROUPS = List.of(
+        List.of(P + "escape"), List.of(P + "tab"), List.of(P + "caps.lock"), List.of(P + "backspace"),
+        List.of(P + "enter", P + "keypad.enter"), List.of(P + "left.shift", P + "right.shift"),
+        List.of(P + "left.control", P + "right.control"), List.of(P + "left.alt", P + "right.alt"),
+        List.of(P + "left.win", P + "right.win"), List.of(P + "space"),
+        List.of(P + "up", P + "down", P + "left", P + "right"),
+        List.of(P + "home", P + "end", P + "page.up", P + "page.down"),
+        List.of(P + "insert", P + "delete"),
+        List.of(P + "print.screen", P + "pause", P + "scroll.lock", P + "num.lock"));
+    private static final String[] GROUP_IDS = {"escape", "tab", "caps", "backspace", "enter", "shift", "ctrl", "alt",
+        "win", "space", "arrows", "navigation", "editing", "system"};
+    private static final int ROW_STEP = 28;
+    private static final int PREVIEW_WIDTH = 46;
+
+    private enum Tab { LABELS, BOTTOM_ROW }
 
     private final Screen parent;
-    private String selectedInput;
+    private Tab tab = Tab.LABELS;
+    private String selectedBottom = P + "space";
     private int panelX, panelY, panelWidth, panelHeight, left, right, top, bottom;
-    private int platformY, keyboardX, keyboardY, keyboardWidth, keyboardHeight, selectedY, modesY;
-    private KeyboardDiagramLayout keyboardLayout;
-    private final List<KeyCellButton> keyButtons = new ArrayList<>();
-    private final KeysetWidgets.FlatButton[] modeButtons = new KeysetWidgets.FlatButton[KeyLegendMode.values().length];
-    private KeysetWidgets.FlatButton resetAllButton, resetKeyButton;
-    private PreviewKeyButton selectedPreview;
+    private int contentTop, contentBottom, rowCapacity, scroll, nameWidth;
+    private Map<String, String> labels = Map.of();
+    private KeyboardFormFactor resolvedForm = KeyboardFormFactor.FULL;
+    private final List<KeysetWidgets.FlatButton[]> rowModes = new ArrayList<>();
+    private final List<KeyCellButton> stripKeys = new ArrayList<>();
+    private KeysetWidgets.FlatButton moveLeft, moveRight;
+    private KeysetWidgets.FlatButton resetAllButton;
+    private List<KeyboardDiagramLayout.Cell> bottomRow = List.of();
     private Component error;
 
     public KeyboardStyleScreen(Screen parent) {
         this(parent, null);
     }
 
-    /** Opens directly on a key chosen in the personalization preview. */
+    /** Opens on the key chosen in the personalization preview, when it has an editable legend. */
     public KeyboardStyleScreen(Screen parent, String selectedInput) {
         super(Component.translatable("keyset.legend_title"));
         this.parent = parent;
-        this.selectedInput = selectedInput;
+        if (selectedInput != null) {
+            for (int i = 0; i < GROUPS.size(); i++) {
+                if (GROUPS.get(i).contains(selectedInput)) { scroll = i; break; }
+            }
+            if (BOTTOM_INPUTS.contains(selectedInput)) selectedBottom = selectedInput;
+        }
     }
 
     @Override
     protected void init() {
+        InterfaceScale.apply(this);
+        KeycapRenderer.resetFontMetrics();
         KeysetClient.ensureLoaded();
         clearWidgets();
-        keyButtons.clear();
-        panelWidth = Math.max(1, Math.min(1200, width - PANEL_MARGIN * 2));
-        panelHeight = Math.max(1, Math.min(720, height - PANEL_MARGIN * 2));
+        rowModes.clear();
+        stripKeys.clear();
+        moveLeft = null;
+        panelWidth = Math.max(1, Math.min(640, width - 12));
+        panelHeight = Math.max(1, Math.min(480, height - 12));
         panelX = (width - panelWidth) / 2;
         panelY = (height - panelHeight) / 2;
-        left = panelX + PANEL_MARGIN;
-        right = panelX + panelWidth - PANEL_MARGIN;
-        top = panelY + PANEL_MARGIN;
-        bottom = panelY + panelHeight - PANEL_MARGIN;
+        left = panelX + 12;
+        right = panelX + panelWidth - 12;
+        top = panelY + 10;
+        bottom = panelY + panelHeight - 12;
 
-        addButton(Component.translatable("keyset.done"), right - 58, top,
-            58, HEADER_HEIGHT, ignored -> onClose(), KeysetWidgets.ButtonStyle.PRIMARY);
-        resetAllButton = addButton(Component.literal("↺"), right - 58 - 4 - 28, top,
-            28, HEADER_HEIGHT, ignored -> resetAll(), KeysetWidgets.ButtonStyle.ACTION);
+        addButton(Component.translatable("keyset.done"), right - 70, top, 70, 20,
+            ignored -> onClose(), KeysetWidgets.ButtonStyle.PRIMARY);
+        resetAllButton = addButton(Component.translatable("keyset.reset"), right - 70 - 4 - 80, top, 80, 20,
+            ignored -> resetAll(), KeysetWidgets.ButtonStyle.ACTION);
+        resetAllButton.visible = tab == Tab.LABELS;
         resetAllButton.setTooltip(Tooltip.create(Component.translatable("keyset.legend_reset_all")));
 
-        platformY = top + HEADER_HEIGHT + 2;
-        int platformGap = 3;
-        int platformWidth = Math.max(1, (right - left - platformGap * (KeyboardPlatform.values().length - 1)) / KeyboardPlatform.values().length);
-        KeyboardPlatform currentPlatform = KeysetClient.appearance().keyboardPresentation().platform();
+        int tabsY = top + 28;
+        int gap = 4;
+        int tabWidth = Math.max(1, (right - left - gap) / 2);
+        addButton(Component.translatable("keyset.legend_tab_labels"), left, tabsY, tabWidth, 22,
+            ignored -> switchTab(Tab.LABELS), KeysetWidgets.ButtonStyle.TAB).setSelected(tab == Tab.LABELS);
+        addButton(Component.translatable("keyset.legend_tab_bottom"), left + tabWidth + gap, tabsY,
+            right - left - tabWidth - gap, 22, ignored -> switchTab(Tab.BOTTOM_ROW),
+            KeysetWidgets.ButtonStyle.TAB).setSelected(tab == Tab.BOTTOM_ROW);
+
+        int platformY = tabsY + 26;
+        int count = KeyboardPlatform.values().length;
+        int platformWidth = Math.max(1, (right - left - 3 * (count - 1)) / count);
+        KeyboardPlatform current = KeysetClient.appearance().keyboardPresentation().platform();
         for (KeyboardPlatform platform : KeyboardPlatform.values()) {
-            int index = platform.ordinal();
-            int x = left + index * (platformWidth + platformGap);
-            int width = index == KeyboardPlatform.values().length - 1 ? right - x : platformWidth;
-            var button = addButton(Component.translatable(platform.translationKey()), x, platformY,
-                width, PLATFORM_HEIGHT, ignored -> setPlatform(platform), KeysetWidgets.ButtonStyle.TAB);
-            button.setSelected(platform == currentPlatform);
+            int x = left + platform.ordinal() * (platformWidth + 3);
+            addButton(Component.translatable(platform.translationKey()), x, platformY,
+                platform.ordinal() == count - 1 ? right - x : platformWidth, 18,
+                ignored -> setPlatform(platform), KeysetWidgets.ButtonStyle.TAB).setSelected(platform == current);
         }
+        contentTop = platformY + 26;
+        contentBottom = bottom;
 
-        keyboardX = left + 2;
-        keyboardWidth = Math.max(1, right - left - 4);
-        int modeY = bottom - MODE_HEIGHT;
-        modesY = modeY;
-        selectedY = modeY - SELECTED_HEIGHT - 2;
-        keyboardY = platformY + PLATFORM_HEIGHT + 3;
-        int keyboardBottom = selectedY - 4;
-        keyboardHeight = Math.max(1, keyboardBottom - keyboardY);
+        loadLabels();
+        if (tab == Tab.LABELS) initLabels();
+        else initBottomRow();
+    }
 
+    private void switchTab(Tab next) {
+        if (tab == next) return;
+        tab = next;
+        init();
+    }
+
+    private void loadLabels() {
         UiAppearance appearance = KeysetClient.appearance();
-        keyboardLayout = KeyboardDiagramLayout.forArea(keyboardX, keyboardY, keyboardWidth, keyboardHeight,
-            100, appearance.keyboardFormFactor(), KeyboardLayouts.forLanguage(minecraft.options.languageCode),
-            appearance.keyboardPresentation());
-        ensureSelectedKey();
-        createKeyButtons();
-        createSelectedControls();
-        updateModeButtons();
-        updateErrorTooltip();
-    }
-
-    private void createKeyButtons() {
-        KeyboardPlatform platform = KeysetClient.appearance().keyboardPresentation().platform();
-        for (KeyboardDiagramLayout.Cell cell : keyboardLayout.keys()) {
-            var rect = cell.bounds();
-            Component displayName = keyName(cell.input(), cell.label(), platform);
-            Component tooltipText = cell.input().equals(FN_INPUT)
-                ? Component.translatable("keyset.legend_fn_hint")
-                : displayName.copy().append("\n").append(Component.literal(cell.input()));
-            KeyCellButton button = addRenderableWidget(new KeyCellButton(rect.x(), rect.y(), rect.width(), rect.height(),
-                displayName, cell.input(), cell.label(), ignored -> select(cell.input())));
-            button.setTooltip(Tooltip.create(tooltipText));
-            keyButtons.add(button);
+        KeyboardFormFactor form = appearance.keyboardFormFactor().resolve(right - left, height);
+        if (form == KeyboardFormFactor.AUTO) form = KeyboardFormFactor.FULL;
+        resolvedForm = form;
+        var layout = KeyboardDiagramLayout.forArea(0, 0, KeyboardDiagramLayout.columns(form) * 40,
+            KeyboardDiagramLayout.rows(form) * 40, 100, form,
+            KeyboardLayouts.forLanguage(minecraft.options.languageCode), appearance.keyboardPresentation());
+        Map<String, String> found = new LinkedHashMap<>();
+        for (var cell : layout.keys()) found.put(cell.input(), cell.label());
+        labels = found;
+        bottomRow = layout.keys().stream().filter(cell -> BOTTOM_INPUTS.contains(cell.input())).toList();
+        if (bottomRow.stream().noneMatch(cell -> cell.input().equals(selectedBottom)) && !bottomRow.isEmpty()) {
+            selectedBottom = bottomRow.get(0).input();
         }
     }
 
-    private void createSelectedControls() {
-        int previewWidth = Math.min(38, Math.max(22, keyboardWidth / 8));
-        int resetWidth = Math.min(58, Math.max(42, keyboardWidth / 6));
-        int previewX = right - PANEL_MARGIN - resetWidth - 3 - previewWidth;
-        int resetX = right - PANEL_MARGIN - resetWidth;
-        resetKeyButton = addButton(Component.translatable("keyset.legend_reset"), resetX, selectedY,
-            resetWidth, SELECTED_HEIGHT, ignored -> resetSelected(), KeysetWidgets.ButtonStyle.ACTION);
-        selectedPreview = new PreviewKeyButton(previewX, selectedY, previewWidth, SELECTED_HEIGHT);
-        addRenderableWidget(selectedPreview);
+    // ---------------------------------------------------------------- labels tab
 
-        int gap = 3;
-        int modeWidth = Math.max(1, (right - left - gap * (KeyLegendMode.values().length - 1))
-            / KeyLegendMode.values().length);
-        for (KeyLegendMode mode : KeyLegendMode.values()) {
-            int x = left + mode.ordinal() * (modeWidth + gap);
-            int width = mode == KeyLegendMode.values()[KeyLegendMode.values().length - 1]
-                ? right - x : modeWidth;
-            KeysetWidgets.FlatButton button = addButton(Component.translatable(mode.translationKey()), x, modesY,
-                width, MODE_HEIGHT, ignored -> setMode(selectedInput, mode), KeysetWidgets.ButtonStyle.TAB);
-            modeButtons[mode.ordinal()] = button;
+    private void initLabels() {
+        rowCapacity = Math.max(1, (contentBottom - contentTop) / ROW_STEP);
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, GROUPS.size() - rowCapacity)));
+        int modesWidth = Math.min(340, (right - left) * 58 / 100);
+        nameWidth = Math.max(40, right - left - PREVIEW_WIDTH - 20 - modesWidth - 12);
+        int modeGap = 3;
+        int modeWidth = Math.max(1, (modesWidth - 2 * modeGap) / 3);
+        int modesX = right - modesWidth - 8;
+        for (int slot = 0; slot < rowCapacity; slot++) {
+            KeysetWidgets.FlatButton[] modes = new KeysetWidgets.FlatButton[KeyLegendMode.values().length];
+            for (KeyLegendMode mode : KeyLegendMode.values()) {
+                int x = modesX + mode.ordinal() * (modeWidth + modeGap);
+                int slotIndex = slot;
+                String full = Component.translatable(mode.translationKey()).getString();
+                int buttonWidth = mode.ordinal() == 2 ? modesX + modesWidth - x : modeWidth;
+                Component label = font.width(full) + 10 <= buttonWidth ? Component.literal(full)
+                    : Component.translatable(mode.translationKey().replace("legend_mode.", "legend_mode_short."));
+                modes[mode.ordinal()] = addButton(label, x,
+                    contentTop + slot * ROW_STEP + 2, mode.ordinal() == 2 ? modesX + modesWidth - x : modeWidth, 22,
+                    ignored -> setGroupMode(scroll + slotIndex, mode), KeysetWidgets.ButtonStyle.TAB);
+            }
+            rowModes.add(modes);
+        }
+        refreshRows();
+    }
+
+    private void refreshRows() {
+        KeyboardPresentation presentation = KeysetClient.appearance().keyboardPresentation();
+        for (int slot = 0; slot < rowModes.size(); slot++) {
+            int index = scroll + slot;
+            boolean visible = index < GROUPS.size();
+            KeyLegendMode shared = visible ? groupMode(presentation, GROUPS.get(index)) : null;
+            for (KeyLegendMode mode : KeyLegendMode.values()) {
+                var button = rowModes.get(slot)[mode.ordinal()];
+                button.visible = visible;
+                button.setSelected(mode == shared);
+            }
         }
     }
 
-    private void ensureSelectedKey() {
-        if (selectedInput == null || keyboardLayout.keys().stream().noneMatch(cell -> cell.input().equals(selectedInput))) {
-            selectedInput = keyboardLayout.keys().stream().filter(cell -> cell.input().equals("key.keyboard.escape"))
-                .map(KeyboardDiagramLayout.Cell::input).findFirst()
-                .orElseGet(() -> keyboardLayout.keys().isEmpty() ? null : keyboardLayout.keys().get(0).input());
-        }
+    private static KeyLegendMode groupMode(KeyboardPresentation presentation, List<String> group) {
+        KeyLegendMode first = presentation.modeFor(group.get(0));
+        for (String input : group) if (presentation.modeFor(input) != first) return null;
+        return first;
     }
 
-    private void select(String input) {
-        selectedInput = input;
-        updateModeButtons();
-    }
-
-    private void setMode(String input, KeyLegendMode mode) {
-        if (input == null) return;
+    private void setGroupMode(int index, KeyLegendMode mode) {
+        if (index < 0 || index >= GROUPS.size()) return;
         UiAppearance current = KeysetClient.appearance();
-        save(current.withKeyboardPresentation(current.keyboardPresentation().withMode(input, mode)));
-        updateModeButtons();
-    }
-
-    private void setPlatform(KeyboardPlatform platform) {
-        UiAppearance current = KeysetClient.appearance();
-        save(current.withKeyboardPresentation(current.keyboardPresentation().withPlatform(platform)));
-        if (error == null) init();
-    }
-
-    private void resetSelected() {
-        if (selectedInput == null) return;
-        UiAppearance current = KeysetClient.appearance();
-        KeyLegendMode defaultMode = KeyboardPresentation.defaults().modeFor(selectedInput);
-        save(current.withKeyboardPresentation(current.keyboardPresentation().withMode(selectedInput, defaultMode)));
-        updateModeButtons();
+        KeyboardPresentation presentation = current.keyboardPresentation();
+        for (String input : GROUPS.get(index)) presentation = presentation.withMode(input, mode);
+        save(current.withKeyboardPresentation(presentation));
+        refreshRows();
     }
 
     private void resetAll() {
         UiAppearance current = KeysetClient.appearance();
         save(current.withKeyboardPresentation(new KeyboardPresentation(current.keyboardPresentation().platform(),
-            java.util.Map.of(), current.keyboardPresentation().bottomRow())));
-        if (error == null) {
-            selectedInput = "key.keyboard.escape";
-            init();
+            Map.of(), current.keyboardPresentation().bottomRow())));
+        if (error == null) init();
+    }
+
+    private Component groupName(int index) {
+        return Component.translatable("keyset.legend_group." + GROUP_IDS[index]);
+    }
+
+    // ---------------------------------------------------------------- bottom row tab
+
+    private void initBottomRow() {
+        if (bottomRow.isEmpty()) return;
+        int innerWidth = right - left;
+        int first = bottomRow.get(0).bounds().x();
+        var last = bottomRow.get(bottomRow.size() - 1).bounds();
+        int contentWidth = last.x() + last.width() - first;
+        float scale = Math.min(innerWidth / (float) contentWidth, 44f / bottomRow.get(0).bounds().height());
+        int startX = left + (innerWidth - Math.round(contentWidth * scale)) / 2;
+        int rowY = contentTop + 24;
+        KeyboardPlatform platform = KeysetClient.appearance().keyboardPresentation().platform();
+        for (var cell : bottomRow) {
+            var bounds = cell.bounds();
+            KeyCellButton button = addRenderableWidget(new KeyCellButton(startX + Math.round((bounds.x() - first) * scale),
+                rowY, Math.max(1, Math.round(bounds.width() * scale)),
+                Math.max(1, Math.round(bounds.height() * scale)), cell.input(), cell.label(),
+                ignored -> { selectedBottom = cell.input(); refreshStrip(); }));
+            String translation = KeyboardKeyNames.translationKey(cell.input(), platform);
+            button.setTooltip(Tooltip.create(translation == null ? Component.translatable(cell.input())
+                : Component.translatable(translation)));
+            stripKeys.add(button);
+        }
+        int controlsY = rowY + 44 + 18;
+        int gap = 4;
+        int third = Math.max(1, (innerWidth - 2 * gap) / 3);
+        moveLeft = addButton(Component.translatable("keyset.bottom_move_left"), left, controlsY, third, 22,
+            ignored -> move(-1), KeysetWidgets.ButtonStyle.ACTION);
+        moveRight = addButton(Component.translatable("keyset.bottom_move_right"), left + third + gap, controlsY,
+            third, 22, ignored -> move(1), KeysetWidgets.ButtonStyle.ACTION);
+        addButton(Component.translatable("keyset.appearance_reset"), left + 2 * (third + gap), controlsY,
+            innerWidth - 2 * (third + gap), 22, ignored -> saveBottom(KeyboardBottomRow.defaults()),
+            KeysetWidgets.ButtonStyle.ACTION);
+        int widthY = controlsY + 30;
+        addButton(Component.literal("-"), left, widthY, 28, 22, ignored -> changeWidth(-1), KeysetWidgets.ButtonStyle.ACTION);
+        addButton(Component.translatable("keyset.bottom_space_width",
+                String.format(Locale.ROOT, "%.2f", currentSpaceWidth() / 4.0)),
+            left + 32, widthY, Math.max(1, innerWidth - 64), 22,
+            ignored -> saveBottom(KeysetClient.appearance().keyboardPresentation().bottomRow().withSpaceWidth(0)),
+            KeysetWidgets.ButtonStyle.QUIET);
+        addButton(Component.literal("+"), right - 28, widthY, 28, 22, ignored -> changeWidth(1), KeysetWidgets.ButtonStyle.ACTION);
+        refreshStrip();
+    }
+
+    private void refreshStrip() {
+        for (KeyCellButton button : stripKeys) button.selected = button.input.equals(selectedBottom);
+        if (moveLeft != null) {
+            int index = bottomIndex();
+            moveLeft.active = index > 0;
+            moveRight.active = index >= 0 && index < bottomRow.size() - 1;
         }
     }
 
-    private void updateModeButtons() {
-        KeyboardPresentation presentation = KeysetClient.appearance().keyboardPresentation();
-        KeyLegendMode selectedMode = selectedInput == null ? KeyLegendMode.TEXT : presentation.modeFor(selectedInput);
-        for (KeyLegendMode mode : KeyLegendMode.values()) {
-            KeysetWidgets.FlatButton button = modeButtons[mode.ordinal()];
-            if (button != null) button.setSelected(mode == selectedMode);
-        }
-        for (KeyCellButton button : keyButtons) button.setSelected(button.input.equals(selectedInput));
-        if (selectedPreview != null) selectedPreview.setSelectedKey(selectedCell());
-        if (resetKeyButton != null) resetKeyButton.setTooltip(Tooltip.create(Component.translatable(
-            "keyset.legend_mode_for", selectedCell() == null ? Component.empty() : keyName(selectedCell().input(),
-                selectedCell().label(), presentation.platform()), Component.translatable("keyset.legend_reset"))));
+    private int bottomIndex() {
+        for (int i = 0; i < bottomRow.size(); i++) if (bottomRow.get(i).input().equals(selectedBottom)) return i;
+        return -1;
     }
 
-    private KeyboardDiagramLayout.Cell selectedCell() {
-        if (keyboardLayout == null || selectedInput == null) return null;
-        return keyboardLayout.keys().stream().filter(cell -> cell.input().equals(selectedInput)).findFirst().orElse(null);
+    private int currentSpaceWidth() {
+        var appearance = KeysetClient.appearance();
+        int stored = appearance.keyboardPresentation().bottomRow().spaceWidth();
+        if (stored != 0) return stored;
+        return appearance.keyboardPresentation().platform().resolved() == KeyboardPlatform.MAC
+            ? (resolvedForm == KeyboardFormFactor.COMPACT_75 ? 22 : 30) : 25;
+    }
+
+    private void move(int direction) {
+        int index = bottomIndex(), destination = index + direction;
+        if (index < 0 || destination < 0 || destination >= bottomRow.size()) return;
+        List<String> order = new ArrayList<>(bottomRow.stream().map(KeyboardDiagramLayout.Cell::input).toList());
+        Collections.swap(order, index, destination);
+        saveBottom(KeysetClient.appearance().keyboardPresentation().bottomRow().withOrder(order));
+    }
+
+    private void changeWidth(int direction) {
+        saveBottom(KeysetClient.appearance().keyboardPresentation().bottomRow().withSpaceWidth(currentSpaceWidth() + direction));
+    }
+
+    private void saveBottom(KeyboardBottomRow value) {
+        UiAppearance current = KeysetClient.appearance();
+        save(current.withKeyboardPresentation(current.keyboardPresentation().withBottomRow(value)));
+        if (error == null) init();
+    }
+
+    // ---------------------------------------------------------------- shared
+
+    private void setPlatform(KeyboardPlatform platform) {
+        UiAppearance current = KeysetClient.appearance();
+        save(current.withKeyboardPresentation(current.keyboardPresentation().withPlatform(platform)));
+        if (error == null) init();
     }
 
     private void save(UiAppearance appearance) {
@@ -211,14 +324,6 @@ public final class KeyboardStyleScreen extends Screen {
         } catch (IOException | RuntimeException failure) {
             error = KeysetClient.operationError(failure);
         }
-        updateErrorTooltip();
-    }
-
-    private void updateErrorTooltip() {
-        if (resetAllButton != null) {
-            resetAllButton.setTooltip(Tooltip.create(error == null
-                ? Component.translatable("keyset.legend_reset_all") : error));
-        }
     }
 
     private KeysetWidgets.FlatButton addButton(Component label, int x, int y, int width, int height,
@@ -227,33 +332,53 @@ public final class KeyboardStyleScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (tab == Tab.LABELS && GROUPS.size() > rowCapacity) {
+            int next = Math.max(0, Math.min(GROUPS.size() - rowCapacity, scroll - (int) Math.signum(scrollY)));
+            if (next != scroll) { scroll = next; refreshRows(); }
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
-        int titleWidth = Math.max(1, right - left - 96);
-        KeysetWidgets.drawText(graphics, font, title, left, top + 6, titleWidth,
+        KeysetWidgets.drawText(graphics, font, title, left, top + 6, Math.max(1, right - left - 110),
             error == null ? UiTheme.text() : UiTheme.red());
-
-        graphics.fill(keyboardX - 2, keyboardY - 2, keyboardX + keyboardWidth + 2,
-            keyboardY + keyboardHeight + 2, UiTheme.panelLight());
-
-        KeyboardDiagramLayout.Cell selected = selectedCell();
-        int labelWidth = Math.max(1, right - left - 12 - (selectedPreview == null ? 0 : selectedPreview.getWidth())
-            - (resetKeyButton == null ? 0 : resetKeyButton.getWidth()));
-        if (selected != null) {
-            Component name = keyName(selected.input(), selected.label(), KeysetClient.appearance().keyboardPresentation().platform());
-            KeysetWidgets.drawText(graphics, font, name, left + 2, selectedY + 4, labelWidth, UiTheme.text());
-            KeycapPainter.State selectedState = new KeycapPainter.State(false, true, false, false, false, false);
-            KeycapPainter.draw(graphics::fill, selectedPreview.getX(), selectedPreview.getY(),
-                selectedPreview.getWidth(), selectedPreview.getHeight(), UiTheme.currentPalette(), selectedState);
-            KeycapRenderer.drawKey(graphics, font, selected.input(), selected.label(),
-                KeycapPainter.faceBounds(selectedPreview.getX(), selectedPreview.getY(),
-                    selectedPreview.getWidth(), selectedPreview.getHeight()),
-                KeycapPainter.labelColor(UiTheme.currentPalette(), selectedState), .2f,
-                KeysetClient.appearance().keyboardPresentation());
+        KeyboardPresentation presentation = KeysetClient.appearance().keyboardPresentation();
+        var palette = UiTheme.currentPalette();
+        if (tab == Tab.LABELS) {
+            for (int slot = 0; slot < rowCapacity; slot++) {
+                int index = scroll + slot;
+                if (index >= GROUPS.size()) break;
+                int y = contentTop + slot * ROW_STEP;
+                graphics.fill(left, y, right, y + ROW_STEP - 2, (index % 2 == 0) ? UiTheme.row() : UiTheme.rowAlternate());
+                List<String> group = GROUPS.get(index);
+                String first = group.get(0);
+                var state = new KeycapPainter.State(false, false, false, false, false, false);
+                int keyX = left + 8, keyY = y + 3, keyH = ROW_STEP - 8;
+                KeycapPainter.draw(graphics::fill, keyX, keyY, PREVIEW_WIDTH, keyH, palette, state);
+                KeycapRenderer.drawKey(graphics, font, first, labels.getOrDefault(first, first.substring(P.length())),
+                    KeycapPainter.faceBounds(keyX, keyY, PREVIEW_WIDTH, keyH),
+                    KeycapPainter.labelColor(palette, state), .2f, presentation);
+                KeysetWidgets.drawText(graphics, font, groupName(index),
+                    left + PREVIEW_WIDTH + 18, y + (ROW_STEP - 2 - font.lineHeight) / 2, nameWidth, UiTheme.text());
+            }
+            if (GROUPS.size() > rowCapacity) {
+                int track = rowCapacity * ROW_STEP - 2;
+                int thumb = Math.max(14, track * rowCapacity / GROUPS.size());
+                int thumbY = contentTop + (track - thumb) * scroll / Math.max(1, GROUPS.size() - rowCapacity);
+                graphics.fill(right + 3, contentTop, right + 6, contentTop + track, 0x90000000);
+                graphics.fill(right + 3, thumbY, right + 6, thumbY + thumb, UiTheme.muted());
+            }
+        } else {
+            KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.bottom_hint"), left,
+                contentTop + 4, right - left, UiTheme.muted());
+            KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.bottom_fit_hint"), left,
+                contentTop + 24 + 44 + 18 + 30 + 30, right - left, UiTheme.muted());
         }
-        if (error != null) {
-            graphics.text(font, "!", right - 93, top + 6, UiTheme.red(), false);
-        }
+        if (error != null) KeysetWidgets.drawText(graphics, font, error, left, bottom - 10, right - left, UiTheme.red());
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -262,54 +387,26 @@ public final class KeyboardStyleScreen extends Screen {
         minecraft.setScreenAndShow(parent);
     }
 
-    private static Component keyName(String input, String label, KeyboardPlatform platform) {
-        String translation = KeyboardKeyNames.translationKey(input, platform);
-        if (translation != null) return Component.translatable(translation);
-        if (input.equals(FN_INPUT)) return Component.translatable("keyset.keyboard_fn");
-        return Component.literal(label);
-    }
-
     private final class KeyCellButton extends Button {
         private final String input;
         private final String label;
         private boolean selected;
 
-        private KeyCellButton(int x, int y, int width, int height, Component name,
-                              String input, String label, OnPress onPress) {
-            super(x, y, width, height, name, onPress, DEFAULT_NARRATION);
+        private KeyCellButton(int x, int y, int width, int height, String input, String label, OnPress onPress) {
+            super(x, y, width, height, Component.literal(label), onPress, DEFAULT_NARRATION);
             this.input = input;
             this.label = label;
         }
 
-        private void setSelected(boolean selected) { this.selected = selected; }
-
         @Override
         protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hovered = active && isHoveredOrFocused();
-            KeycapPainter.State state = new KeycapPainter.State(hovered, selected, false, false,
-                active && isFocused(), false);
+            KeycapPainter.State state = new KeycapPainter.State(isHoveredOrFocused(), selected, false, false,
+                isFocused(), false);
             KeycapPainter.draw(graphics::fill, getX(), getY(), getWidth(), getHeight(), UiTheme.currentPalette(), state);
             KeycapRenderer.drawKey(graphics, Minecraft.getInstance().font, input, label,
                 KeycapPainter.faceBounds(getX(), getY(), getWidth(), getHeight()),
-                KeycapPainter.labelColor(UiTheme.currentPalette(), state), .18f,
+                KeycapPainter.labelColor(UiTheme.currentPalette(), state), .2f,
                 KeysetClient.appearance().keyboardPresentation());
-        }
-    }
-
-    private final class PreviewKeyButton extends Button {
-        private KeyboardDiagramLayout.Cell selectedCell;
-
-        private PreviewKeyButton(int x, int y, int width, int height) {
-            super(x, y, width, height, Component.empty(), ignored -> {}, DEFAULT_NARRATION);
-            this.selectedCell = null;
-            active = false;
-        }
-
-        private void setSelectedKey(KeyboardDiagramLayout.Cell cell) { selectedCell = cell; }
-
-        @Override
-        protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-            // The selected key is rendered by the screen so the mode preview always matches the current palette.
         }
     }
 }

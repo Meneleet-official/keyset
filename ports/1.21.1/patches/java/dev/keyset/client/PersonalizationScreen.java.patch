@@ -1,6 +1,6 @@
 --- a/dev/keyset/client/PersonalizationScreen.java
 +++ b/dev/keyset/client/PersonalizationScreen.java
-@@ -12,13 +12,11 @@
+@@ -14,13 +14,11 @@
  import java.util.EnumMap;
  import java.util.List;
  import java.util.Locale;
@@ -15,19 +15,16 @@
  import net.minecraft.network.chat.Component;
  
  /** Controls the keyboard editor's size, input position, and color palette. */
-@@ -155,9 +153,9 @@
-             formButtons[i].setSelected(form == appearance.keyboardFormFactor());
+@@ -177,7 +175,7 @@
+             platformButtons[i].setSelected(platform == currentPlatform);
          }
-         layoutButton(5, Component.translatable("keyset.appearance_legends_open"), layoutControlX,
+         layoutButton(6, Component.translatable("keyset.appearance_legends_open"), layoutControlX,
 -                controlsWidth, ignored -> minecraft.setScreenAndShow(new KeyboardStyleScreen(this)));
 +                controlsWidth, ignored -> minecraft.setScreen(new KeyboardStyleScreen(this)));
-         layoutButton(6, Component.translatable("keyset.appearance_bottom_row_open"), layoutControlX,
--                controlsWidth, ignored -> minecraft.setScreenAndShow(new BottomRowScreen(this)));
-+                controlsWidth, ignored -> minecraft.setScreen(new BottomRowScreen(this)));
-         layoutCapacity = Math.max(1, Math.min(LAYOUT_LABELS.length,
-                 (layout.settingsBottom() - contentY) / COLOR_ROW_HEIGHT));
-         layoutScroll = Math.max(0, Math.min(layoutScroll, LAYOUT_LABELS.length - layoutCapacity));
-@@ -182,7 +180,7 @@
+         EditorScale.Mode[] sizes = EditorScale.Mode.values();
+         int sizeWidth = Math.max(1, (controlsWidth - 3 * (sizes.length - 1)) / sizes.length);
+         for (EditorScale.Mode size : sizes) {
+@@ -212,7 +210,7 @@
  
      private void initColors(UiAppearance appearance) {
          themesButton = addButton(Component.empty(), innerX, contentY, innerWidth, 20,
@@ -36,7 +33,7 @@
          refreshPresetSelection();
  
          colorListTop = contentY + 28;
-@@ -301,7 +299,7 @@
+@@ -331,7 +329,7 @@
      private void openColorPicker(HexColorField field) {
          Integer draft = parseHex(colorBoxes.get(field).getValue());
          int initialColor = draft == null ? colorValue(field, KeysetClient.appearance()) : draft;
@@ -45,7 +42,7 @@
                  color -> {
                      String value = hex(color);
                      switch (field) {
-@@ -516,28 +514,28 @@
+@@ -568,28 +566,28 @@
      }
  
      @Override
@@ -62,16 +59,13 @@
              }
          }
 -        return super.keyPressed(event);
--    }
--
--    @Override
++        return super.keyPressed(keyCode, scanCode, modifiers);
+     }
+ 
+     @Override
 -    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
 -        if (event.button() == 0) {
 -            String input = preview.keyAt(event.x(), event.y());
-+        return super.keyPressed(keyCode, scanCode, modifiers);
-+    }
-+
-+    @Override
 +    public boolean mouseClicked(double mouseX, double mouseY, int button) {
 +        if (button == 0) {
 +            String input = preview.keyAt(mouseX, mouseY);
@@ -86,38 +80,34 @@
      }
  
      private void scrollSettings(int change) {
-@@ -554,7 +552,14 @@
+@@ -606,7 +604,7 @@
      }
  
      @Override
 -    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-+        // Vanilla 1.21 draws a blurred world here; the screen paints its own backdrop in render().
-+    }
-+
-+    @Override
 +    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-+        if (minecraft.level == null) { renderPanorama(graphics, partialTick); renderMenuBackground(graphics); }
-+        else renderTransparentBackground(graphics); // vanilla dim over the world
+         updateFocus(mouseX, mouseY);
          KeysetWidgets.drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
          KeysetWidgets.drawText(graphics, font, title, innerX, panelY + 11, layout.totalInnerWidth(), UiTheme.text());
-         if (tab == Tab.LAYOUT) {
-@@ -576,10 +581,10 @@
+@@ -629,7 +627,7 @@
              int errorY = footerY - 12;
              KeysetWidgets.drawText(graphics, font, error, innerX, errorY, layout.totalInnerWidth(), UiTheme.red());
          }
 -        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
--    }
--
--    private void drawColors(GuiGraphicsExtractor graphics) {
 +        super.render(graphics, mouseX, mouseY, partialTick);
-+    }
-+
+     }
+ 
+     /** The preview follows the setting row under the cursor and keeps the last one when the cursor leaves. */
+@@ -661,7 +659,7 @@
+         };
+     }
+ 
+-    private void drawColors(GuiGraphicsExtractor graphics) {
 +    private void drawColors(GuiGraphics graphics) {
          for (HexColorField field : HexColorField.values()) {
              int row = field.ordinal();
              if (!isColorRowVisible(row)) continue;
-@@ -594,8 +599,8 @@
+@@ -676,8 +674,8 @@
                      UiTheme.widgetSurface(UiTheme.control()));
              int outline = parseHex(box.getValue()) == null ? UiTheme.red()
                      : box.isFocused() ? UiTheme.accent() : UiTheme.border();
@@ -128,7 +118,7 @@
          }
          int opacityRow = COLOR_ROW_COUNT - 1;
          if (isColorRowVisible(opacityRow)) {
-@@ -606,7 +611,7 @@
+@@ -688,7 +686,7 @@
          drawScrollBar(graphics, colorListTop, COLOR_ROW_COUNT, colorCapacity, colorScroll);
      }
  
@@ -137,7 +127,7 @@
          if (capacity >= count) return;
          int trackHeight = capacity * COLOR_ROW_HEIGHT - 2;
          int thumbHeight = Math.max(12, trackHeight * capacity / count);
-@@ -615,19 +620,19 @@
+@@ -697,19 +695,19 @@
          graphics.fill(innerX + innerWidth - 3, thumbY, innerX + innerWidth, thumbY + thumbHeight, UiTheme.muted());
      }
  
@@ -160,7 +150,7 @@
              graphics.fill(x + 10, y + 3, x + 12, y + 10, UiTheme.border());
              graphics.fill(x + 9, y + 6, x + 13, y + 9, body);
              return;
-@@ -638,7 +643,7 @@
+@@ -720,7 +718,7 @@
          graphics.fill(x, y, x + 22, y + 19, colors.edge());
          graphics.fill(x + 1, y + 1, x + 21, y + 18, colors.face());
          String label = field == HexColorField.BOUND_KEY ? "A" : field == HexColorField.CONFLICT_KEY ? "!" : "-";
@@ -169,7 +159,7 @@
      }
  
      @Override
-@@ -649,7 +654,7 @@
+@@ -731,7 +729,7 @@
  
      @Override
      public void onClose() {
@@ -178,7 +168,7 @@
      }
  
      private final class ColorSwatchButton extends Button {
-@@ -663,9 +668,9 @@
+@@ -745,9 +743,9 @@
          }
  
          @Override

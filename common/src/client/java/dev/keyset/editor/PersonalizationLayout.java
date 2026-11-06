@@ -14,11 +14,14 @@ public record PersonalizationLayout(int x, int y, int width, int height, int inn
         int footerY = y + panelHeight - 28;
         boolean side = innerWidth >= 420;
         int settingsWidth = side ? Math.min(360, innerWidth - 172) : innerWidth;
+        // A short window gives the whole height to the settings instead of a thumbnail nobody can read.
+        boolean showPreview = side || panelHeight >= 300;
         Rect preview = side
                 ? new Rect(innerX + settingsWidth + 12, y + 34,
                         innerWidth - settingsWidth - 12, footerY - 16 - (y + 34))
-                : new Rect(innerX, footerY - 60, innerWidth, 48);
-        int settingsBottom = side ? footerY - 16 : preview.y() - 10;
+                : showPreview ? new Rect(innerX, footerY - 60, innerWidth, 48)
+                : new Rect(innerX, footerY - 12, innerWidth, 0);
+        int settingsBottom = side ? footerY - 16 : showPreview ? preview.y() - 10 : footerY - 22;
         return new PersonalizationLayout(x, y, panelWidth, panelHeight, innerX, innerWidth,
                 settingsWidth, y + 58, settingsBottom, footerY, preview, side);
     }

@@ -27,3 +27,7 @@ Use the JAR for the exact Minecraft version and loader. Minecraft 26.2 uses Java
 Appearance and profile JSON formats are shared across these ports. Resource-pack theme JSON is shared too, but each Minecraft version needs an appropriate `pack.mcmeta` resource-pack format.
 
 The builds do not launch Minecraft. Compilation and archive checks do not replace testing in the matching game version.
+
+## Self-test
+
+`python scripts/selftest.py <minecraft-version> <fabric|neoforge>` starts a development client with `-Dkeyset.selftest=true`. Once the title screen is up, Keyset opens each of its screens at many interface sizes, scrolls them, and quits; the script reads the game log and reports PASS or FAIL. It needs a desktop session and downloads the version's game assets on first use. `<minecraft-version>` is `26.3` (the main project) or a folder under `ports/`.

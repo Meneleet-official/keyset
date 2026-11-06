@@ -27,7 +27,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 /** Lets players save, share, and apply custom keyboard themes. */
-public final class ThemeLibraryScreen extends Screen {
+public final class ThemeLibraryScreen extends ScaledScreen {
     private static final int ROW_HEIGHT = 24;
     private static final List<AppearancePreset> PRESETS = List.of(AppearancePreset.values());
 
@@ -40,16 +40,15 @@ public final class ThemeLibraryScreen extends Screen {
     private long resourceRevision;
     private String selectedId;
     private String nameDraft = "";
-    private String lastExportPath;
     private Component statusMessage;
     private boolean statusIsError;
     private EditBox nameBox;
     private KeysetWidgets.FlatButton saveButton;
     private KeysetWidgets.FlatButton[] presetButtons = new KeysetWidgets.FlatButton[0];
-    private KeysetWidgets.FlatButton exportButton, importButton, deleteButton, applyButton;
+    private KeysetWidgets.FlatButton copyButton, fileButton, deleteButton, applyButton;
     private int panelX, panelY, panelWidth, panelHeight, innerX, innerWidth;
     private int nameInputX, nameInputY, nameInputWidth;
-    private int listTop, listBottom, statusY, transferY, footerY, scroll, capacity;
+    private int listTop, listBottom, statusY, transferY, transferY2, footerY, scroll, capacity;
 
     public ThemeLibraryScreen(Screen parent, Runnable onApplied) {
         super(Component.translatable("keyset.themes_title"));
@@ -59,6 +58,7 @@ public final class ThemeLibraryScreen extends Screen {
 
     @Override
     protected void init() {
+        InterfaceScale.apply(this);
         KeysetClient.ensureLoaded();
         clearWidgets();
         rowButtons.clear();
@@ -72,7 +72,8 @@ public final class ThemeLibraryScreen extends Screen {
         innerWidth = Math.max(1, panelWidth - 24);
         footerY = panelY + panelHeight - 26;
         transferY = footerY - 24;
-        statusY = transferY - 15;
+        transferY2 = transferY - 24;
+        statusY = transferY2 - 15;
         nameInputY = panelY + 33 + ((PRESETS.size() + 1) / 2) * 21 + 3;
         listTop = nameInputY + 23;
         listBottom = statusY - 5;
@@ -145,18 +146,24 @@ public final class ThemeLibraryScreen extends Screen {
 
     private void initFooter() {
         int gap = 4;
-        int buttonWidth = Math.max(1, (innerWidth - gap * 2) / 3);
-        int rightWidth = innerWidth - 2 * buttonWidth - 2 * gap;
-        exportButton = addButton(Component.translatable("keyset.transfer_export"),
-                innerX, transferY, buttonWidth, 20, ignored -> exportSelected(), KeysetWidgets.ButtonStyle.ACTION);
-        importButton = addButton(Component.translatable("keyset.transfer_import"),
-                innerX + buttonWidth + gap, transferY, buttonWidth, 20,
-                ignored -> importTheme(), KeysetWidgets.ButtonStyle.ACTION);
+        int third = Math.max(1, (innerWidth - gap * 2) / 3);
+        int last = innerWidth - 2 * third - 2 * gap;
+        // Row 1: through the clipboard, the quickest way to share a theme.
+        copyButton = addButton(Component.translatable("keyset.themes_copy_clipboard"),
+                innerX, transferY2, third, 20, ignored -> copySelected(), KeysetWidgets.ButtonStyle.ACTION);
+        addButton(Component.translatable("keyset.themes_paste_clipboard"),
+                innerX + third + gap, transferY2, third, 20, ignored -> pasteTheme(), KeysetWidgets.ButtonStyle.ACTION);
         deleteButton = addButton(Component.translatable("keyset.profile_delete_short"),
-                innerX + 2 * (buttonWidth + gap), transferY, rightWidth, 20,
+                innerX + 2 * (third + gap), transferY2, last, 20,
                 ignored -> confirmDeleteSelected(), KeysetWidgets.ButtonStyle.ACTION);
-        exportButton.active = deleteButton.active = false;
-        importButton.active = true;
+        // Row 2: through files in the theme folder.
+        fileButton = addButton(Component.translatable("keyset.themes_export_file"),
+                innerX, transferY, third, 20, ignored -> exportFileSelected(), KeysetWidgets.ButtonStyle.ACTION);
+        addButton(Component.translatable("keyset.themes_import_folder"),
+                innerX + third + gap, transferY, third, 20, ignored -> importFolder(), KeysetWidgets.ButtonStyle.ACTION);
+        addButton(Component.translatable("keyset.themes_folder"),
+                innerX + 2 * (third + gap), transferY, last, 20, ignored -> openThemeFolder(), KeysetWidgets.ButtonStyle.ACTION);
+        copyButton.active = fileButton.active = deleteButton.active = false;
 
         int half = Math.max(1, (innerWidth - gap) / 2);
         addButton(Component.translatable("keyset.compare_back"), innerX, footerY,
@@ -165,17 +172,6 @@ public final class ThemeLibraryScreen extends Screen {
                 footerY, innerWidth - half - gap, 20,
                 ignored -> applySelectedTheme(), KeysetWidgets.ButtonStyle.PRIMARY);
         applyButton.active = false;
-
-        String transferDirectory = KeysetClient.themeTransferDirectory().toString();
-        setImportTooltip(transferDirectory);
-        if (lastExportPath != null) {
-            exportButton.setTooltip(Tooltip.create(
-                    Component.translatable("keyset.themes_exported", lastExportPath)));
-        }
-        if (statusIsError && statusMessage != null) {
-            importButton.setTooltip(Tooltip.create(statusMessage));
-            exportButton.setTooltip(Tooltip.create(statusMessage));
-        }
     }
 
     private boolean loadThemes(boolean preserveSelection) {
@@ -231,7 +227,8 @@ public final class ThemeLibraryScreen extends Screen {
         }
         SavedTheme selected = selectedTheme();
         boolean hasSelection = selected != null;
-        if (exportButton != null) exportButton.active = hasSelection;
+        if (copyButton != null) copyButton.active = hasSelection;
+        if (fileButton != null) fileButton.active = hasSelection;
         if (deleteButton != null) deleteButton.active = hasSelection;
         if (deleteButton != null) {
             boolean resource = selected != null && resourceSources.containsKey(selected.id());
@@ -260,16 +257,10 @@ public final class ThemeLibraryScreen extends Screen {
         try {
             ThemeStore store = KeysetClient.themeStore();
             SavedTheme captured = SavedTheme.capture(nameBox.getValue(), KeysetClient.appearance());
-            SavedTheme existing = store.themes().stream()
-                    .filter(theme -> theme.name().equalsIgnoreCase(captured.name()))
-                    .findFirst().orElse(null);
-            SavedTheme theme = existing == null ? captured : new SavedTheme(existing.id(), captured.name(),
-                    captured.accentColor(), captured.panelColor(), captured.panelOpacity(),
-                    captured.boundKeyColor(), captured.conflictKeyColor(), captured.unboundKeyColor(), captured.mouseBodyColor());
+            SavedTheme theme = captured;
             store.save(theme);
             selectedId = theme.id();
             if (!reloadThemes()) return;
-            resetTransferTooltips();
             setStatus(Component.translatable("keyset.themes_saved"), false);
         } catch (IOException | RuntimeException failure) {
             setError(failure);
@@ -300,77 +291,76 @@ public final class ThemeLibraryScreen extends Screen {
         }
     }
 
-    private void exportSelected() {
+    private String themeJson(SavedTheme theme) throws IOException {
+        ResourcePackThemes.Entry source = resourceSources.get(theme.id());
+        return source != null ? ThemeStore.encodeTheme(source.theme()) : KeysetClient.themeStore().exportTheme(theme.id());
+    }
+
+    /** The quick path: the selected theme becomes text in the clipboard. */
+    private void copySelected() {
         SavedTheme theme = selectedTheme();
         if (theme == null) return;
-        Path destination = null;
         try {
-            String json = resourceSources.containsKey(theme.id())
-                ? ThemeStore.encodeTheme(resourceSources.get(theme.id()).theme())
-                : KeysetClient.themeStore().exportTheme(theme.id());
-            Path directory = KeysetClient.themeTransferDirectory();
-            Files.createDirectories(directory);
-            destination = directory.resolve("keyset-theme-" + UUID.randomUUID() + ".json");
-            writeNewExport(destination, json);
-            lastExportPath = destination.toString();
-            Component exported = Component.translatable("keyset.themes_exported", destination.toString());
-            exportButton.setTooltip(Tooltip.create(exported));
-            try {
-                minecraft.keyboardHandler.setClipboard(json);
-            } catch (RuntimeException clipboardFailure) {
-                Component message = KeysetClient.operationError(clipboardFailure).copy().append("\n").append(exported);
-                setStatus(message, true);
-                exportButton.setTooltip(Tooltip.create(exported));
-                return;
-            }
-            setStatus(exported, false);
+            minecraft.keyboardHandler.setClipboard(themeJson(theme));
+            setStatus(Component.translatable("keyset.themes_copied_clipboard"), false);
         } catch (IOException | RuntimeException failure) {
             setError(failure);
         }
     }
 
-    private void importTheme() {
-        Set<String> knownIds = Set.of();
+    /** The quick path, other side: a theme copied from anywhere is added straight from the clipboard. */
+    private void pasteTheme() {
         try {
             String clipboard = minecraft.keyboardHandler.getClipboard();
-            ThemeStore store = KeysetClient.themeStore();
-            knownIds = Set.copyOf(store.themes().stream().map(SavedTheme::id)
-                    .collect(java.util.stream.Collectors.toSet()));
-            if (looksLikeJson(clipboard)) {
-                selectedId = store.importTheme(clipboard).id();
-            } else {
-                Path directory = KeysetClient.themeTransferDirectory();
-                if (!Files.isDirectory(directory)) {
-                    setStatus(Component.translatable("keyset.themes_no_import").append(" ")
-                            .append(Component.translatable("keyset.themes_import_hint", directory.toString())), false);
-                    return;
-                }
-                ThemeStore.ImportResult result = store.importDirectory(directory);
-                Set<String> knownBeforeImport = knownIds;
-                SavedTheme selection = result.imported().stream().filter(theme -> !knownBeforeImport.contains(theme.id()))
-                        .reduce((first, next) -> next).orElseGet(() -> result.imported().isEmpty()
-                                ? null : result.imported().get(result.imported().size() - 1));
-                if (selection != null) selectedId = selection.id();
-                if (result.imported().isEmpty() && result.skipped() == 0) {
-                    setStatus(Component.translatable("keyset.themes_no_import").append(" ")
-                            .append(Component.translatable("keyset.themes_import_hint", directory.toString())), false);
-                    return;
-                }
-
-                if (!reloadThemes()) return;
-                resetTransferTooltips();
-                Component summary = Component.translatable("keyset.themes_import_summary",
-                        Integer.toString(result.imported().size()), Integer.toString(result.skipped()));
-                setStatus(summary, result.skipped() > 0);
-                if (!result.errors().isEmpty()) {
-                    importButton.setTooltip(Tooltip.create(Component.literal(String.join("\n", result.errors()))));
-                }
+            if (!looksLikeJson(clipboard)) {
+                setStatus(Component.translatable("keyset.themes_clipboard_invalid"), true);
                 return;
             }
-
+            selectedId = KeysetClient.themeStore().importTheme(clipboard).id();
             if (!reloadThemes()) return;
-            resetTransferTooltips();
             setStatus(Component.translatable("keyset.themes_import_summary", "1", "0"), false);
+        } catch (IOException | RuntimeException failure) {
+            setError(failure);
+        }
+    }
+
+    private void exportFileSelected() {
+        SavedTheme theme = selectedTheme();
+        if (theme == null) return;
+        try {
+            Path directory = KeysetClient.themeTransferDirectory();
+            Files.createDirectories(directory);
+            Path destination = directory.resolve("keyset-theme-" + UUID.randomUUID() + ".json");
+            writeNewExport(destination, themeJson(theme));
+            setStatus(Component.translatable("keyset.themes_saved_file", destination.toString()), false);
+        } catch (IOException | RuntimeException failure) {
+            setError(failure);
+        }
+    }
+
+    private void importFolder() {
+        Set<String> knownIds = Set.of();
+        try {
+            Path directory = KeysetClient.themeTransferDirectory();
+            ThemeStore store = KeysetClient.themeStore();
+            knownIds = Set.copyOf(store.themes().stream().map(SavedTheme::id).collect(java.util.stream.Collectors.toSet()));
+            if (!Files.isDirectory(directory)) {
+                setStatus(Component.translatable("keyset.themes_folder_empty", directory.toString()), false);
+                return;
+            }
+            ThemeStore.ImportResult result = store.importDirectory(directory);
+            Set<String> knownBeforeImport = knownIds;
+            SavedTheme selection = result.imported().stream().filter(theme -> !knownBeforeImport.contains(theme.id()))
+                    .reduce((first, next) -> next).orElseGet(() -> result.imported().isEmpty()
+                            ? null : result.imported().get(result.imported().size() - 1));
+            if (selection != null) selectedId = selection.id();
+            if (result.imported().isEmpty() && result.skipped() == 0) {
+                setStatus(Component.translatable("keyset.themes_folder_empty", directory.toString()), false);
+                return;
+            }
+            if (!reloadThemes()) return;
+            setStatus(Component.translatable("keyset.themes_import_summary",
+                    Integer.toString(result.imported().size()), Integer.toString(result.skipped())), result.skipped() > 0);
         } catch (IOException | RuntimeException failure) {
             reloadThemes();
             Set<String> knownBeforeFailure = knownIds;
@@ -380,6 +370,19 @@ public final class ThemeLibraryScreen extends Screen {
                 selectedId = partialNewImport.id();
                 refreshRows();
             }
+            setError(failure);
+        }
+    }
+
+    private void openThemeFolder() {
+        try {
+            Path directory = KeysetClient.themeTransferDirectory();
+            Files.createDirectories(directory);
+            String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+            String command = os.contains("win") ? "explorer" : os.contains("mac") ? "open" : "xdg-open";
+            new ProcessBuilder(command, directory.toAbsolutePath().toString()).start();
+            setStatus(Component.translatable("keyset.transfer_folder_opened", directory.toString()), false);
+        } catch (IOException | RuntimeException failure) {
             setError(failure);
         }
     }
@@ -411,7 +414,6 @@ public final class ThemeLibraryScreen extends Screen {
             if (!reloadThemes()) return;
             statusMessage = null;
             statusIsError = false;
-            resetTransferTooltips();
         } catch (IOException | RuntimeException failure) {
             setError(failure);
         }
@@ -433,32 +435,16 @@ public final class ThemeLibraryScreen extends Screen {
         selectedId = theme == null ? null : theme.id();
         statusMessage = null;
         statusIsError = false;
-        resetTransferTooltips();
         refreshRows();
     }
 
     private void setStatus(Component message, boolean error) {
         statusMessage = message;
         statusIsError = error;
-        if (importButton != null) {
-            if (error) importButton.setTooltip(Tooltip.create(message));
-            else setImportTooltip(KeysetClient.themeTransferDirectory().toString());
-        }
     }
 
     private void setError(Exception failure) {
         setStatus(KeysetClient.operationError(failure), true);
-        if (exportButton != null) exportButton.setTooltip(Tooltip.create(statusMessage));
-    }
-
-    private void setImportTooltip(String directory) {
-        importButton.setTooltip(Tooltip.create(Component.translatable("keyset.themes_import_hint", directory)));
-    }
-
-    private void resetTransferTooltips() {
-        lastExportPath = null;
-        if (exportButton != null) exportButton.setTooltip(Tooltip.create(Component.translatable("keyset.transfer_export")));
-        if (importButton != null) setImportTooltip(KeysetClient.themeTransferDirectory().toString());
     }
 
     private static boolean looksLikeJson(String value) {
@@ -533,7 +519,7 @@ public final class ThemeLibraryScreen extends Screen {
                 UiTheme.widgetSurface(UiTheme.control()));
         graphics.outline(nameInputX, nameInputY, nameInputWidth, 20,
                 nameBox != null && nameBox.isFocused() ? UiTheme.accent() : UiTheme.border());
-        if (themes.isEmpty()) {
+        if (themes.isEmpty() && listBottom - listTop >= 20) {
             KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.themes_empty"),
                     innerX + 5, listTop + 6, Math.max(1, innerWidth - 10), UiTheme.muted());
         }
@@ -545,10 +531,9 @@ public final class ThemeLibraryScreen extends Screen {
             graphics.fill(trackX, listTop, trackX + 2, listTop + trackHeight, UiTheme.border());
             graphics.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, UiTheme.muted());
         }
-        if (statusMessage != null) {
-            KeysetWidgets.drawText(graphics, font, statusMessage, innerX, statusY,
-                    innerWidth, statusIsError ? UiTheme.red() : UiTheme.muted());
-        }
+        KeysetWidgets.drawText(graphics, font, statusMessage != null ? statusMessage
+                        : Component.translatable("keyset.themes_transfer_hint"), innerX, statusY,
+                innerWidth, statusMessage == null ? UiTheme.muted() : statusIsError ? UiTheme.red() : UiTheme.accentText());
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -576,7 +561,7 @@ public final class ThemeLibraryScreen extends Screen {
 
         private void setTheme(SavedTheme theme) {
             this.theme = theme;
-            setMessage(theme == null ? Component.empty() : Component.literal(theme.name())
+            setMessage(theme == null ? Component.empty() : Component.literal(theme.name() + duplicateMark(theme))
                 .append(resourceSources.containsKey(theme.id()) ? Component.translatable("keyset.themes_resource_badge") : Component.empty()));
         }
 
@@ -618,6 +603,16 @@ public final class ThemeLibraryScreen extends Screen {
                 graphics.outline(colorX, y + (height - chipSize) / 2, chipSize, chipSize, UiTheme.border());
             }
         }
+    }
+
+    /** Themes may share a name; later ones are marked " #2", " #3" so they stay tellable apart. */
+    private String duplicateMark(SavedTheme theme) {
+        int ordinal = 1;
+        for (SavedTheme other : themes) {
+            if (other.id().equals(theme.id())) break;
+            if (other.name().equalsIgnoreCase(theme.name())) ordinal++;
+        }
+        return ordinal > 1 ? " #" + ordinal : "";
     }
 
     private void selectThemeAt(int slot) {

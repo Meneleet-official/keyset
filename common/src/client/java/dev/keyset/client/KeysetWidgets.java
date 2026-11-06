@@ -46,7 +46,7 @@ public final class KeysetWidgets {
         graphics.text(font, value, x, y, color, false);
     }
 
-    public enum ButtonStyle { ACTION, PRIMARY, TAB, QUIET, ROW, BINDING }
+    public enum ButtonStyle { ACTION, PRIMARY, TAB, QUIET, ROW, BINDING, LIST }
 
     public static final class FlatButton extends Button {
         private final ButtonStyle style;
@@ -81,7 +81,7 @@ public final class KeysetWidgets {
                 if (style == ButtonStyle.BINDING && !selected) fill = hover ? UiTheme.hover() : UiTheme.row();
                 if (!active) fill = 0x40000000;
                 fill = UiTheme.widgetSurface(fill);
-                if (style != ButtonStyle.QUIET || hover || selected || UiTheme.text() == 0xFF000000) {
+                if (style != ButtonStyle.LIST || hover || selected || UiTheme.text() == 0xFF000000) {
                     graphics.fill(x, y, x + width, y + height, fill);
                 }
                 if (style == ButtonStyle.BINDING) {

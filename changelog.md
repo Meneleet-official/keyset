@@ -1,2 +1,208 @@
-- [CHORE] refactor
-- [FIX] keymap layouts not loading on quilt loader 0.18.x
+# 1.3.0 - interface rework
+
+- The interface picks its own size from the window, independent of Minecraft's GUI scale. Choose Auto, Smaller, Larger or Game under Style -> Interface size.
+- Keyboard shortcuts in the editor: Ctrl+Z undo, Ctrl+Y (or Ctrl+Shift+Z) redo, Up/Down/PageUp/PageDown to walk the action list and Enter to change the highlighted action.
+- Keyboard and categories form one scrollable column with a draggable scrollbar; the action list scrollbar is draggable too.
+- Categories and mods can be hidden or restored per row, or all at once; the separate Sections screen is gone.
+- The "!" conflict button now filters the list by the shared key instead of opening a dialog.
+- The profile menu is a simple list with rename, delete, compare and automatic-profile buttons per row, and a clearer Export / import screen with an Open folder button.
+- Themes: Copy and Paste through the clipboard, or save to and import from the theme folder; a theme provided by a resource pack is applied as soon as the pack is enabled.
+- The keyboard format and type are detected automatically by default (Auto), and personalization shows only the part of the preview that a setting changes. Color editing shows Before and After for just the affected element, with keys compared against the other key states.
+- Key legends and the bottom row share one simpler screen listing only keys whose legend can change.
+- Auto size for keyboard and mouse, row height and input panel position in the preview, themes with the same name are marked instead of replaced.
+- Removed leftover screens, code and translations.
+
+# 1.3.0 - переработка интерфейса
+
+- Интерфейс сам выбирает размер по окну, независимо от масштаба интерфейса Minecraft. «Авто», «Мельче», «Крупнее» или «Игра» - в «Вид» -> «Размер интерфейса».
+- Горячие клавиши в редакторе: Ctrl+Z - отмена, Ctrl+Y (или Ctrl+Shift+Z) - повтор, стрелки и PageUp/PageDown - перемещение по списку действий, Enter - изменить выбранное действие.
+- Клавиатура и категории - одна прокручиваемая колонка с перетаскиваемым ползунком; ползунок списка действий тоже перетаскивается.
+- Категории и моды скрываются и возвращаются по одной или все сразу; отдельного экрана «Разделы» больше нет.
+- Кнопка «!» у конфликта фильтрует список по общей клавише вместо диалога.
+- Меню профилей - простой список с кнопками переименования, удаления, сравнения и автопрофиля в каждой строке и понятный экран «Экспорт / импорт» с кнопкой «Открыть папку».
+- Темы: «Копировать» и «Вставить» через буфер обмена либо сохранение в папку тем и импорт из неё; тема из ресурспака применяется сразу после его включения.
+- Формат и тип клавиатуры по умолчанию определяются сами («Авто»); предпросмотр в персонализации показывает только то, что меняет настройка. Выбор цвета показывает «Было» и «Станет» только для затронутого элемента, клавиши сравниваются с остальными состояниями.
+- Подписи клавиш и нижний ряд - на одном упрощённом экране, где только клавиши с изменяемой подписью.
+- Авторазмер клавиатуры и мыши, высота строк и положение панели ввода в предпросмотре, темы с одинаковым названием помечаются, а не заменяются.
+- Удалены оставшиеся экраны, код и переводы.
+
+# 1.2.0 - color themes
+
+- Cached the mouse artwork instead of rebuilding thousands of drawing commands every frame; cached textures are released when the screen closes.
+- Enlarged color-picker device previews with Keyboard/Mouse tabs and a dedicated preview page for smaller windows. Full keyboards pan horizontally instead of shrinking into unreadable thumbnails.
+- Aligned vanilla Cyrillic key legends to a shared scale and baseline, fixing the undersized Й while keeping its breve inside the keycap.
+- Added a live keyboard and mouse preview in personalization and full-size, TKL, 75%, and 60% keyboard diagrams.
+- Simplified action filters to Conflicts and Unbound, with removable filter chips; removed favorites and the Modified filter.
+- Added a searchable single-column mod/category list, separate counts, and clearer selection.
+- Redesigned the mouse with curved top and side profiles, integrated click plates, a recessed wheel, and shape-aware input regions. Keyboard legends scale to fit their beveled key faces, including Cyrillic labels.
+- Added named custom themes with portable JSON import/export, clipboard transfer, and safe shared storage.
+- Corrected the front/rear M5/M4 mouse positions and the normal numpad period input.
+- Moved all keyboard and mouse color settings into Colors, alongside the interface palette.
+- Every preset now changes the complete palette, including bound, conflicting, and free keys.
+- Balanced all presets so bound and free keys remain clearly distinguishable without an excessive brightness difference; existing base palettes update automatically.
+- Clicking a color sample opens a picker with saturation/brightness, hue and RGB sliders, HEX input, and original/new previews. Confirm applies the color; Cancel preserves the original.
+- Added live color samples, compact HEX fields, and scrolling for smaller windows and larger GUI scales.
+- Preset selection now reflects custom key color edits, and the editor displays version 1.2.0.
+- Hidden assignments and chord modifiers remain accounted for when identifying free keys. Color settings persist across sessions and instances.
+
+# 1.2.0 - цветовые темы
+
+- Мышь использует кэш изображений вместо повторной отрисовки тысяч элементов каждый кадр; ресурсы освобождаются при закрытии экрана.
+- Увеличен предпросмотр устройств в выборе цвета: добавлены вкладки клавиатуры и мыши, а в небольших окнах - отдельная страница предпросмотра. Полноразмерную клавиатуру можно прокручивать по горизонтали.
+- Кириллические подписи стандартного шрифта выровнены по размеру и базовой линии: Й больше не уменьшается отдельно от остальных букв.
+- Добавлены живой предпросмотр клавиатуры и мыши в персонализации и форматы клавиатуры 100%, TKL, 75% и 60%.
+- Фильтры действий упрощены до «Конфликты» и «Без назначения» со снимаемыми метками; избранное и фильтр «Изменённые» удалены.
+- Добавлен поиск модов и категорий в одноколоночном списке с отдельными счётчиками и заметным выделением.
+- Мышь получила плавные контуры сверху и сбоку, встроенные основные кнопки, утопленное колесо и области нажатия по форме кнопок. Подписи клавиатуры, включая кириллицу, уменьшаются под размер внутренних граней клавиш.
+- Добавлены именованные пользовательские темы с переносом через JSON и буфер обмена и общим хранилищем.
+- Исправлены передняя/задняя позиции M5/M4 и назначение обычной точки на нумпаде.
+- Все настройки цветов клавиатуры и мыши перенесены в «Цвета» рядом с палитрой интерфейса.
+- Готовые темы меняют полную палитру, включая назначенные, конфликтующие и свободные клавиши.
+- Во всех готовых темах назначенные и свободные клавиши заметно различаются без чрезмерного перепада яркости; старые готовые палитры обновляются автоматически.
+- Нажатие на образец цвета открывает панель с насыщенностью и яркостью, ползунками оттенка и RGB, вводом HEX и сравнением старого и нового цветов. Подтверждение применяет цвет, отмена сохраняет исходный.
+- Добавлены образцы цветов, компактные поля HEX и прокрутка для небольших окон и крупного масштаба GUI.
+- Выбранная тема учитывает ручные изменения цветов клавиш; в редакторе отображается версия 1.2.0.
+- Скрытые назначения и модификаторы сочетаний учитываются при определении свободных клавиш. Цвета сохраняются между запусками и сборками.
+
+# 1.1.1 - reliability fixes
+
+- Fixed rollback of key changes when a hotkey provider or save operation throws a runtime error.
+- Made profile import deduplication case-insensitive so profiles are not duplicated when their names differ only by letter case.
+- Updated mod author and project metadata.
+
+# 1.1.1 - исправления стабильности
+
+- Исправлен откат назначения клавиш при runtime-ошибке провайдера или сохранения.
+- Убран повторный импорт профилей, если их имена отличаются только регистром букв.
+- Обновлены сведения об авторах и метаданные проекта.
+
+# 1.1.0 - personalization and section visibility
+
+- Added per-instance profiles: switch between shared and independent profile sets in the profile menu. The first detach copies the current profiles; reconnecting preserves both sets without merging them. The choice is remembered for each instance.
+- Added the **Previous Key Profile** action, which cycles backward through profiles alongside **Next Key Profile**.
+- Added scoped action searches: #category and @mod, with quoted names, IDs, and combined filters. The Sections search also switches lists when using # or @.
+- Added an optional Mod Menu configuration button on Fabric, opening the Keyset editor.
+- Redesigned the mouse diagram with a wider symmetric shell, separate wheel label, integrated side buttons, and matching keycaps for M6-M8.
+- All keyboard and mouse buttons stay visible. Inputs used only by hidden mods or categories look unassigned; shared inputs keep their visible assignment highlights.
+- Restoring a section restores its assignment highlights; hotkeys remain active throughout.
+- Neutral-looking keys remain clickable for filtering and rebinding in both normal and compact layouts.
+
+- Fixed the numpad grid: aligned columns, double-height Add and Enter, and double-width zero.
+- Added a Style button with panel position, keyboard/mouse size, action row height, color presets, custom HEX colors, and panel opacity.
+- Added persistent hiding for any mod or category through Sections, plus a quick hide button on category headers. Hidden hotkeys stay active; real conflict checks still include them.
+- Appearance and section visibility use the shared preferences file and remain intact when undoing a binding change.
+- Mirrored panels keep their splitter and footer aligned when the window is resized.
+
+# 1.0.0 - первый выпуск Keyset
+
+- Первый релиз клиентского мода Keyset для Minecraft 26.3 на Fabric и NeoForge.
+- В выпуск вошла накопленная функциональность, описанная в истории разработки ниже; прежняя нумерация 1.x относилась к разработке до первого релиза.
+- В меню и списке модов установлен предоставленный логотип Keyset с сохранением прозрачности.
+- Существующие профили и общий каталог настроек совместимы с релизом 1.0.0.
+- Редактор следует масштабу GUI Minecraft; для небольшого доступного пространства добавлены вкладки действий, устройств и фильтров.
+- Исправлены наложение скрытых категорий при прокрутке компактного списка и размещение панелей при изменении размера окна.
+- Компактная компоновка для крупного GUI: уменьшены шапка, панели навигации и нижние кнопки; пустая строка фильтров больше не занимает место в списке действий.
+- Добавлены файлы для всех 143 языковых вариантов игры. Большинство переводов автоматические; ограничения редких языков и региональных вариантов перечислены в README.
+
+# История разработки до первого релиза
+
+# 1.7.1 - новая схема мыши
+
+- Вытянутый корпус с плавным сужением, отдельными основными кнопками и небольшим колесом.
+- Кнопки M4/M5 встроены в бок корпуса; M6-M8 вынесены в компактный список рядом.
+- Конфликты отмечаются небольшими цветными индикаторами, подписи остаются читаемыми.
+- Схема адаптируется к высоте окна и сохраняет все восемь назначаемых кнопок.
+
+# 1.7.0 - профили, конфликты и общие настройки
+
+- Обновлён выбор профиля: названия слева, отметка активного профиля, сравнение и компактные кнопки автопрофиля; общая подсказка вместо повторяющихся недоступных действий.
+- Ширина панелей меняется перетаскиванием разделителя и сохраняется; клавиатура подстраивается под доступное место.
+- Выбранная клавиша, категория, мод, конфликты и избранное показаны отдельными снимаемыми фильтрами.
+- Кнопка конфликта показывает другие действия и их моды; можно оставить назначение только выбранному действию или обменять с прежней клавишей после назначения.
+- Сравнение профилей показывает различия и позволяет перенести выбранные назначения в активный профиль, включая настройки отсутствующих модов.
+- Изменения общей папки подхватываются работающими сборками. Блокировка файлов и объединение независимых правок защищают от перезаписи; одновременные разные изменения одного значения требуют повторного выбора.
+- Отмена и откат учитывают изменения, поступившие из другой сборки. Ошибки чтения или записи не удаляют исходный файл настроек.
+
+# 1.6.4 - исправление дублирования профилей
+
+- Перенос из старых папок сборок запоминает идентификаторы профилей: изменения, переименование и удаление в общей папке больше не вызывают повторный импорт.
+- Однократно объединяются старые копии вида `Default (2)`, если основной профиль содержит все их назначения без отличий; варианты с разными привязками сохраняются.
+- Перед переносом и очисткой создаётся резервная копия; активный профиль и правила автопереключения перенаправляются на сохранённый профиль.
+- Ручной импорт переносимых профилей остаётся доступен, включая восстановление удалённого профиля.
+
+# 1.6.3 - палитра ближе к Sodium
+
+- Полупрозрачные чёрные подложки вместо плотных серых заливок; панорама лучше видна через панели и строки.
+- Белый текст, светлые мятные подписи выбранных фильтров и тонкие светлые разделители.
+- Клавиши и мышь сохраняют объём, с более тёмными поверхностями и приглушёнными контурами.
+- Кнопки назначений получили лёгкую подложку, конфликты - полупрозрачную красную подсветку.
+
+# 1.6.2 - фон Minecraft
+
+- Возвращён стандартный фон Minecraft: панорама главного меню или фон мира с игровым затемнением и размытием.
+- Панели и подложка клавиатуры стали полупрозрачными; фон виден за редактором и окнами профилей.
+
+# 1.6.1 - оформление в духе Sodium
+
+- Нейтральная графитовая палитра, плоские панели и кнопки с тонким акцентом выбранного состояния.
+- Единая подсветка строк действий, спокойные разделители категорий и видимый фокус при навигации с клавиатуры.
+- Клавиатура сохраняет объёмные колпачки, мышь - форму корпуса, колесо и отдельные боковые кнопки.
+- Окна выбора и создания профилей приведены к общему оформлению.
+- При выборе клавиши на экранной схеме заголовки категорий скрываются; после сброса фильтра группировка возвращается.
+
+# 1.6.0 - быстрые профили и избранное
+
+- Автопрофили по папке одиночного мира или адресу сервера, с переключением при входе.
+- Настраиваемое действие «Следующий профиль клавиш» для быстрого переключения профилей.
+- Избранные действия, быстрый фильтр избранного и отмена последнего изменения.
+- Действия сгруппированы по категориям с заголовками; разделы можно сворачивать и разворачивать.
+- Добавлен фильтр действий по модам в боковой панели; можно переключаться между фильтром по категории и фильтром по моду.
+- Резервные копии перед общим сбросом, импортом и удалением профиля; хранится до 20 копий.
+- Избранное и автопрофили сохраняются в отдельном общем файле `preferences.properties`.
+
+# 1.5.0 - общие настройки сборок
+
+- Все сборки Minecraft под одной учётной записью используют одну папку профилей вне каталогов отдельных экземпляров.
+- Старые локальные `profiles.json` автоматически копируются в общую папку при первом запуске; локальные профили из других сборок объединяются без смены активного профиля.
+- Общий путь можно переопределить через `KEYSET_CONFIG_DIR` или `-Dkeyset.configDir=...`.
+
+# 1.4.0 - перенос профилей между сборками
+
+- Экспорт активного профиля в отдельный переносимый JSON-файл из окна выбора профиля.
+- Импорт профилей из `config/keyset/transfer/` с предварительным подтверждением, объединением и пропуском совпадений.
+- Профили продолжают храниться отдельно от JAR в `config/keyset/profiles.json`; файл читается разными версиями Keyset.
+
+# 1.3.0 - источник действий и Litematica
+
+- Подсказка при наведении на действие показывает название мода; поиск по @ также понимает его имя и ID.
+- Необязательная интеграция Litematica/MaLiLib: обычные горячие клавиши и горячие переключатели настроек доступны в общей категории Litematica.
+- Захват сочетаний из нескольких физических клавиш, например M + C: сохранение после отпускания. Esc полностью снимает назначение и сохраняет фильтр выбранной клавиши.
+- Профили сохраняют порядок клавиш и дополнительные настройки MaLiLib, включая контекст и способ срабатывания. Старые профили читаются автоматически.
+- Изменения из родного интерфейса MaLiLib синхронизируются с активным профилем, чтобы не теряться после перезапуска.
+- Вызовы и сохранение Litematica остаются в её собственной системе MaLiLib; отдельная установка этих модов необязательна для работы Keyset.
+
+# 1.2.0 - быстрая прокрутка и языковые раскладки
+
+- Прокрутка обновляет только видимые строки: сортировка, переводы, конфликты и подсветка клавиатуры больше не пересчитываются на каждый шаг.
+- Назначения и конфликты собраны в индекс, который обновляется после изменения привязок или профиля.
+- Автоматические подписи клавиатуры и назначений по языку Minecraft: 136 раскладок Unicode CLDR, региональные варианты и ручной выбор.
+- При отвязке Esc сохраняются фильтр и выделение выбранной клавиши, в том числе после удаления последнего действия.
+- Добавлены регрессии для индекса на 5000 действий, конфликтов, отвязки и языковых раскладок.
+
+# 1.1.0 - интерфейс и быстрое назначение
+
+- Исправлены размеры кнопок категорий, перекрывавших экран большим прямоугольником.
+- Переработаны клавиши, список действий, категории и отдельная схема мыши с колесом и боковыми кнопками.
+- Один клик по действию сразу включает захват; назначение применяется и сохраняется без подтверждения.
+- Esc снимает всю привязку вместе с модификаторами; после назначения выбор сбрасывается, следующий Esc закрывает экран.
+- Добавлены кнопки Ctrl/Shift/Alt для сочетаний на экранной схеме и состояние успешного сохранения.
+
+# 1.0.0 - Minecraft 26.3
+
+- Порт клиентского Keymap на Fabric и NeoForge с Java 25 и SDL-вводом.
+- Именованные профили: создание из текущего, выбор, переименование, удаление.
+- Новый адаптивный экран с поиском, категориями, конфликтами и виртуальной клавиатурой.
+- Общий движок сочетаний клавиатуры/мыши с Ctrl/Shift/Alt.
+- UTF-8 JSON, атомарное сохранение, восстановление повреждённых файлов и откат при ошибках записи.
+- Русская и английская локализации.
+- ISC-лицензия исходного Keymap от Einjerjar сохранена.

@@ -12,7 +12,7 @@
  import net.minecraft.network.chat.Component;
  
  /** Compares a saved source profile with the active target and selectively copies assignments. */
-@@ -287,7 +286,7 @@
+@@ -288,7 +287,7 @@
          if (sourceProfile == null || targetProfile == null || selectedActionIds.isEmpty()) return;
          try {
              KeysetClient.copyProfileBindings(sourceProfileId, Set.copyOf(selectedActionIds), observedRevision);
@@ -21,7 +21,7 @@
          } catch (IOException | IllegalArgumentException exception) {
              statusMessage = KeysetClient.operationError(exception);
              statusIsError = true;
-@@ -299,16 +298,18 @@
+@@ -300,16 +299,18 @@
      }
  
      @Override
@@ -47,7 +47,7 @@
          int summaryX = Math.max(150, width - 225);
          KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.compare_summary",
              differences.size(), selectedActionIds.size()), summaryX, 20,
-@@ -356,7 +357,7 @@
+@@ -357,7 +358,7 @@
              KeysetWidgets.drawText(graphics, font, statusMessage, 18, height - 27,
                  Math.max(1, applyButton.getX() - 24), statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
          }
@@ -56,7 +56,7 @@
      }
  
      @Override
-@@ -373,17 +374,17 @@
+@@ -374,17 +375,17 @@
      }
  
      @Override

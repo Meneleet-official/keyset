@@ -18,6 +18,9 @@ public record UiAppearance(
         int mouseBodyColor,
         int mouseScale) {
 
+    /** Scale value meaning "fit the available space, but never grow past a comfortable size". */
+    public static final int AUTO_SCALE = 0;
+
     private static final int DEFAULT_ACCENT_COLOR = 0x94E4D3;
     private static final int DEFAULT_PANEL_COLOR = 0x000000;
     private static final int DEFAULT_BOUND_KEY_COLOR = 0x819D96;
@@ -40,7 +43,7 @@ public record UiAppearance(
                         int accentColor, int panelColor, int panelOpacity,
                         int boundKeyColor, int conflictKeyColor, int unboundKeyColor) {
         this(keyboardScale, rowHeight, inputOnRight, accentColor, panelColor, panelOpacity,
-                boundKeyColor, conflictKeyColor, unboundKeyColor, KeyboardFormFactor.FULL,
+                boundKeyColor, conflictKeyColor, unboundKeyColor, KeyboardFormFactor.AUTO,
                 KeyboardPresentation.defaults(), DEFAULT_MOUSE_BODY_COLOR, 100);
     }
 
@@ -76,7 +79,7 @@ public record UiAppearance(
     }
 
     public UiAppearance {
-        keyboardScale = clamp(keyboardScale, 60, 100);
+        keyboardScale = keyboardScale == AUTO_SCALE ? AUTO_SCALE : clamp(keyboardScale, 60, 100);
         rowHeight = clamp(rowHeight, 18, 32);
         accentColor &= 0xFFFFFF;
         panelColor &= 0xFFFFFF;
@@ -85,13 +88,19 @@ public record UiAppearance(
         conflictKeyColor &= 0xFFFFFF;
         unboundKeyColor &= 0xFFFFFF;
         mouseBodyColor &= 0xFFFFFF;
-        mouseScale = clamp(mouseScale, 60, 100);
-        if (keyboardFormFactor == null) keyboardFormFactor = KeyboardFormFactor.FULL;
+        mouseScale = mouseScale == AUTO_SCALE ? AUTO_SCALE : clamp(mouseScale, 60, 100);
+        if (keyboardFormFactor == null) keyboardFormFactor = KeyboardFormFactor.AUTO;
         keyboardPresentation = Objects.requireNonNullElseGet(keyboardPresentation, KeyboardPresentation::defaults);
     }
 
     public static UiAppearance defaults() {
         return DEFAULTS;
+    }
+
+    public UiAppearance withKeyboardScale(int value) {
+        return new UiAppearance(value, rowHeight, inputOnRight, accentColor, panelColor, panelOpacity,
+                boundKeyColor, conflictKeyColor, unboundKeyColor, keyboardFormFactor, keyboardPresentation,
+                mouseBodyColor, mouseScale);
     }
 
     public UiAppearance withKeyboardFormFactor(KeyboardFormFactor formFactor) {

@@ -1,7 +1,7 @@
 --- a/dev/keyset/client/AppearancePreviewRenderer.java
 +++ b/dev/keyset/client/AppearancePreviewRenderer.java
-@@ -12,7 +12,7 @@
- import dev.keyset.profile.UiAppearance;
+@@ -16,7 +16,7 @@
+ import java.util.Random;
  import net.minecraft.client.KeyMapping;
  import net.minecraft.client.gui.Font;
 -import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -9,25 +9,134 @@
  import net.minecraft.network.chat.Component;
  
  /** A read-only miniature of the current inputs, using the same geometry and colors as the editor. */
-@@ -35,7 +35,7 @@
-     }
- 
-     /** Color editing uses the full pane for one device instead of two unreadable thumbnails. */
--    public void drawDevice(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
-+    public void drawDevice(GuiGraphics graphics, Font font, int x, int y, int width, int height,
-                            UiAppearance appearance, KeyboardLayouts.Layout language, boolean mouseMode, double keyboardPan) {
-         AppearancePalette palette = palette(appearance);
-         graphics.fill(x, y, x + width, y + height, palette.panel());
-@@ -65,7 +65,7 @@
-         return cachedPalette;
+@@ -69,7 +69,7 @@
+         return 22 + SCHEMATIC_HEIGHT + 6 + 12 + keyboardHeight(width) + 12 + 12 + MOUSE_HEIGHT + 8;
      }
  
 -    public void draw(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
 +    public void draw(GuiGraphics graphics, Font font, int x, int y, int width, int height,
-                      UiAppearance appearance, KeyboardLayouts.Layout language) {
+                      UiAppearance appearance, KeyboardLayouts.Layout language, Focus focus, int scroll) {
          AppearancePalette palette = palette(appearance);
+         visibleArea = new int[] {x, y, x + width, y + height};
+@@ -114,13 +114,13 @@
+     }
+ 
+     /** Just the element a color changes, for the color editor's before and after views. */
+-    public void drawSample(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    public void drawSample(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                            UiAppearance appearance, Focus focus, boolean after) {
+         drawSampleOne(graphics, font, x, y, width, height, appearance, focus, palette(appearance),
+             after ? afterArtwork : mouseArtwork);
+     }
+ 
+-    private void drawSampleOne(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void drawSampleOne(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                                UiAppearance appearance, Focus focus, AppearancePalette palette,
+                                MouseTextureCache artwork) {
+         if (width < 8 || height < 8) return;
+@@ -138,7 +138,7 @@
+     }
+ 
+     /** The two editor panels over a checkered backdrop, so color and opacity both read clearly. */
+-    private void panelMock(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void panelMock(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                            AppearancePalette palette) {
+         for (int cy = 0; cy < height; cy += 8) {
+             for (int cx = 0; cx < width; cx += 8) {
+@@ -167,7 +167,7 @@
+     }
+ 
+     /** The places the accent color shows up: selected tab, primary button, search underline, badge, scroll thumb. */
+-    private void accentMock(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void accentMock(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                             AppearancePalette palette) {
          graphics.fill(x, y, x + width, y + height, palette.panel());
-@@ -107,7 +107,7 @@
+         int pad = 8, tabWidth = Math.max(10, (width - 2 * pad - 4) / 2);
+@@ -175,16 +175,16 @@
+         graphics.fill(x + pad, tabY, x + pad + tabWidth, tabY + 18, palette.selected());
+         graphics.fill(x + pad, tabY + 16, x + pad + tabWidth, tabY + 18, palette.accent());
+         Component tab = Component.translatable("keyset.input_keyboard");
+-        graphics.text(font, tab, x + pad + (tabWidth - font.width(tab)) / 2, tabY + 5, palette.accentText(), false);
++        graphics.drawString(font, tab, x + pad + (tabWidth - font.width(tab)) / 2, tabY + 5, palette.accentText(), false);
+         graphics.fill(x + pad + tabWidth + 4, tabY, x + width - pad, tabY + 18, palette.control());
+         Component other = Component.translatable("keyset.input_mouse");
+-        graphics.text(font, other, x + pad + tabWidth + 4 + (width - pad - (x + pad + tabWidth + 4 - x) - font.width(other)) / 2,
++        graphics.drawString(font, other, x + pad + tabWidth + 4 + (width - pad - (x + pad + tabWidth + 4 - x) - font.width(other)) / 2,
+             tabY + 5, palette.text(), false);
+         int buttonY = tabY + 26;
+         graphics.fill(x + pad, buttonY, x + width - pad, buttonY + 20, palette.control());
+         graphics.fill(x + pad, buttonY + 18, x + width - pad, buttonY + 20, palette.accent());
+         Component done = Component.translatable("keyset.done");
+-        graphics.text(font, done, x + (width - font.width(done)) / 2, buttonY + 6, palette.text(), false);
++        graphics.drawString(font, done, x + (width - font.width(done)) / 2, buttonY + 6, palette.text(), false);
+         int searchY = buttonY + 30;
+         graphics.fill(x + pad, searchY, x + width - pad, searchY + 18, palette.control());
+         graphics.fill(x + pad, searchY + 17, x + width - pad, searchY + 18, palette.accent());
+@@ -194,8 +194,8 @@
+         String badge = "✓ " + Component.translatable("keyset.profile_active_badge").getString();
+         int badgeWidth = font.width(badge) + 10;
+         graphics.fill(x + pad, badgeY, x + pad + badgeWidth, badgeY + 14, palette.selected());
+-        graphics.outline(x + pad, badgeY, badgeWidth, 14, palette.accent());
+-        graphics.text(font, badge, x + pad + 5, badgeY + 3, palette.accentText(), false);
++        graphics.renderOutline(x + pad, badgeY, badgeWidth, 14, palette.accent());
++        graphics.drawString(font, badge, x + pad + 5, badgeY + 3, palette.accentText(), false);
+         int trackX = x + width - pad - 3;
+         graphics.fill(trackX, badgeY, trackX + 3, badgeY + 40, 0x90000000);
+         graphics.fill(trackX, badgeY + 6, trackX + 3, badgeY + 22, palette.accent());
+@@ -205,7 +205,7 @@
+      * Twelve keys scattered in a fixed order across all three states, so the color being edited can be judged
+      * against the others: four keys in its own state, four in each of the other two.
+      */
+-    private void keysMock(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void keysMock(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                           UiAppearance appearance, Focus focus, AppearancePalette palette) {
+         graphics.fill(x, y, x + width, y + height, palette.panel());
+         String[] letters = {"W", "A", "S", "D", "Q", "E", "R", "F", "Z", "X", "C", "V"};
+@@ -233,7 +233,7 @@
+         }
+     }
+ 
+-    private void drawFocused(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void drawFocused(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                              UiAppearance appearance, KeyboardLayouts.Layout language, AppearancePalette palette, Focus focus) {
+         Component heading = switch (focus) {
+             case LAYOUT -> Component.translatable("keyset.appearance_input_label");
+@@ -267,7 +267,7 @@
+     }
+ 
+     /** Action rows at their real height, so the chosen row height can be judged as it will look. */
+-    private void rowsDemo(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void rowsDemo(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                           UiAppearance appearance, AppearancePalette palette) {
+         String[] names = {"key.jump", "key.sneak", "key.sprint", "key.inventory", "key.attack", "key.use", "key.drop", "key.chat"};
+         String[] keys = {"SPACE", "SHIFT", "CTRL", "E", "LMB", "RMB", "Q", "T"};
+@@ -281,14 +281,14 @@
+                 Math.max(1, width - chipWidth - 20), palette.text());
+             int chipY = rowY + 1;
+             graphics.fill(x + width - chipWidth - 6, chipY, x + width - 6, rowY + rowPx - 3, palette.keyFace());
+-            graphics.text(font, keys[i], x + width - 6 - chipWidth / 2 - font.width(keys[i]) / 2, textY, palette.text(), false);
++            graphics.drawString(font, keys[i], x + width - 6 - chipWidth / 2 - font.width(keys[i]) / 2, textY, palette.text(), false);
+         }
+         KeysetWidgets.drawText(graphics, font, Component.translatable("keyset.appearance_pixels", Integer.toString(rowPx)),
+             x, y + height - 10, width, palette.muted());
+     }
+ 
+     /** A miniature of the editor window: where the input panel sits and how tall one action row is. */
+-    private void layoutSchematic(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void layoutSchematic(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                                  UiAppearance appearance, AppearancePalette palette) {
+         int gap = 4;
+         int inputWidth = Math.max(8, (width - gap) * 2 / 5);
+@@ -307,7 +307,7 @@
+                     actionsX + actionsWidth - 5, rowY + rowHeight - 1, palette.keyFace());
+         }
+         graphics.fill(inputX, y, inputX + inputWidth, y + paneHeight, palette.panelLight());
+-        graphics.outline(inputX, y, inputWidth, paneHeight, palette.accent());
++        graphics.renderOutline(inputX, y, inputWidth, paneHeight, palette.accent());
+         int keySize = Math.max(2, Math.min(4, inputWidth / 12));
+         for (int row = 0; row < 3; row++) {
+             for (int col = 0; col < 7; col++) {
+@@ -339,7 +339,7 @@
                  visibleInputs.keyConflicts(input), false, allInputs.forInput(input).isEmpty());
      }
  
@@ -36,12 +145,18 @@
                            UiAppearance appearance, KeyboardLayouts.Layout language, AppearancePalette palette) {
          var layout = KeyboardDiagramLayout.forArea(x, y, Math.max(1, width), Math.max(1, height),
                  appearance.keyboardScale(), appearance.keyboardFormFactor(), language, appearance.keyboardPresentation());
-@@ -123,7 +123,7 @@
+@@ -355,12 +355,12 @@
          }
      }
  
 -    private void mouse(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
 +    private void mouse(GuiGraphics graphics, Font font, int x, int y, int width, int height,
                         int mouseScale, AppearancePalette palette) {
+         mouse(graphics, font, x, y, width, height, mouseScale, palette, mouseArtwork);
+     }
+ 
+-    private void mouse(GuiGraphicsExtractor graphics, Font font, int x, int y, int width, int height,
++    private void mouse(GuiGraphics graphics, Font font, int x, int y, int width, int height,
+                        int mouseScale, AppearancePalette palette, MouseTextureCache artwork) {
          if (width < 1 || height < 1) return;
          final int virtualWidth = 280, virtualHeight = 148;

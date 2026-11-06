@@ -10,10 +10,13 @@ parser.add_argument('versions', nargs='*', default=['26.2', '1.21.11', '1.21.1',
 args = parser.parse_args()
 repository = Path(__file__).resolve().parents[1]
 targets = {'26.2': 25, '1.21.11': 21, '1.21.1': 21, '1.20.1': 17}
+# The 1.20.1 port has not been brought up to 1.3.0 yet.
+releases = {'26.2': '1.3.0', '1.21.11': '1.3.0', '1.21.1': '1.3.0', '1.20.1': '1.2.1'}
 for version in args.versions:
     java = targets[version]
+    release = releases[version]
     for loader in ('fabric', 'neoforge'):
-        name = f'keyset-{loader}-1.2.1+mc{version}.jar'
+        name = f'keyset-{loader}-{release}+mc{version}.jar'
         path = repository / 'build/mods' / version / name
         with ZipFile(path) as archive:
             names = set(archive.namelist())
@@ -29,13 +32,13 @@ for version in args.versions:
             assert class_versions and max(class_versions) <= java + 44, f'{name}: Java bytecode too new'
             if loader == 'fabric':
                 metadata = json.loads(archive.read('fabric.mod.json'))
-                assert metadata['version'] == f'1.2.1+mc{version}'
+                assert metadata['version'] == f'{release}+mc{version}'
                 assert version in str(metadata['depends']['minecraft'])
                 assert metadata['environment'] == 'client'
             else:
                 metadata_path = 'META-INF/mods.toml' if version == '1.20.1' else 'META-INF/neoforge.mods.toml'
                 metadata = archive.read(metadata_path).decode('utf-8')
-                assert f'1.2.1+mc{version}' in metadata, f'{name}: wrong version metadata'
+                assert f'{release}+mc{version}' in metadata, f'{name}: wrong version metadata'
                 if version == '1.20.1':
                     manifest = archive.read('META-INF/MANIFEST.MF').decode('utf-8')
                     assert 'MixinConfigs:' in manifest, f'{name}: missing legacy mixin registration'

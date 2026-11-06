@@ -10,4 +10,5 @@ processResources {
 neoForge {
     version = project.neoforge_version
     mods { keyset { sourceSet sourceSets.main } }
+    runs { client { client() } }
 }

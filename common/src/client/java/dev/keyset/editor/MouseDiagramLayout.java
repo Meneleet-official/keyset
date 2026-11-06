@@ -28,7 +28,8 @@ public record MouseDiagramLayout(Rect body, Rect sideBody, Rect topViewLabel, Re
         if (width < 1 || height < 1) throw new IllegalArgumentException("Mouse area must be positive");
         double fit = Math.min(Math.max(1, width - 8) / (double) ART_WIDTH,
                              Math.max(1, height - 6) / (double) ART_HEIGHT);
-        double requested = fit * Math.max(1, Math.min(100, scalePercent)) / 100.0;
+        double requested = scalePercent == 0 ? Math.min(fit, 1.5)
+            : fit * Math.max(1, Math.min(100, scalePercent)) / 100.0;
         double scale = requested;
         int left = x + (width - (int) Math.round(ART_WIDTH * scale)) / 2;
         int top = y + (height - (int) Math.round(ART_HEIGHT * scale)) / 2;

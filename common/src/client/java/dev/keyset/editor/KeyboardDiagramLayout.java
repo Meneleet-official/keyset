@@ -11,6 +11,8 @@ import java.util.Objects;
 /** Responsive geometry for the physical key inputs shown by the editor. */
 public record KeyboardDiagramLayout(List<Cell> keys, Rect bounds) {
     private static final int KEY_GAP_LIMIT = 2;
+    /** Largest key pitch (GUI pixels) the automatic scale grows to on very large windows. */
+    private static final int AUTO_MAX_PITCH = 30;
 
     public KeyboardDiagramLayout {
         keys = List.copyOf(keys);
@@ -61,10 +63,13 @@ public record KeyboardDiagramLayout(List<Cell> keys, Rect bounds) {
 
         int availableWidth = Math.max(1, width);
         int availableHeight = Math.max(1, height);
+        formFactor = formFactor.resolve(availableWidth, availableHeight);
         int columns = columns(formFactor);
         int rows = rows(formFactor);
-        int pitch = Math.max(1, (int) Math.floor(Math.min(availableWidth / (double) columns,
-            availableHeight / (double) rows) * Math.max(1, Math.min(100, scalePercent)) / 100.0));
+        double fitPitch = Math.min(availableWidth / (double) columns, availableHeight / (double) rows);
+        int pitch = scalePercent == 0
+            ? Math.max(1, (int) Math.floor(Math.min(fitPitch, AUTO_MAX_PITCH)))
+            : Math.max(1, (int) Math.floor(fitPitch * Math.max(1, Math.min(100, scalePercent)) / 100.0));
         int gap = Math.max(1, Math.min(KEY_GAP_LIMIT, pitch / 7));
         int contentWidth = Math.max(1, (int) Math.round(columns * (double) pitch) - gap);
         int contentHeight = Math.max(1, rows * pitch - gap);
@@ -87,7 +92,7 @@ public record KeyboardDiagramLayout(List<Cell> keys, Rect bounds) {
 
     public static int columns(KeyboardFormFactor formFactor) {
         return switch (formFactor) {
-            case FULL -> 24;
+            case FULL, AUTO -> 24;
             case TKL -> 19;
             case COMPACT_75 -> 16;
             case COMPACT_60 -> 15;

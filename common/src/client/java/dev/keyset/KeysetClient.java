@@ -54,6 +54,7 @@ public final class KeysetClient {
     private static BindingPlatform platform = new BindingPlatform() {};
     private static boolean assigning;
     private static UndoState undoState;
+    private static UndoState redoState;
     private static String lastGameContext;
     private static KeyMapping nextProfile;
     private static KeyMapping previousProfile;
@@ -61,7 +62,6 @@ public final class KeysetClient {
     private static Map<String, Binding> liveBaseline = Map.of();
     private static boolean saving, refreshing;
     private static long revision;
-    private static LastAssignment lastAssignment;
     private static Map<String, Component> cachedActionNames = Map.of();
     private static long cachedActionRevision = Long.MIN_VALUE;
     private static String cachedActionLanguage = "";
@@ -230,10 +230,9 @@ public final class KeysetClient {
             store = nextStore;
             settingsFile = destination;
             watchSharedFiles();
-            undoState = null;
+            invalidateUndo();
             pendingUndo = null;
             pendingUndoInvalidated = false;
-            lastAssignment = null;
             lastGameContext = null;
             liveBaseline = switchedLive;
             revision++;
@@ -337,21 +336,8 @@ public final class KeysetClient {
 
     public static boolean isCategoryHidden(String categoryId) { ensureLoaded(); return preferences.isCategoryHidden(categoryId); }
     public static boolean isModHidden(String modId) { ensureLoaded(); return preferences.isModHidden(modId); }
-    public static int hiddenSectionCount() {
-        ensureLoaded();
-        return preferences.hiddenCategories().size() + preferences.hiddenMods().size();
-    }
-
-    public static void setCategoryHidden(String categoryId, boolean hidden) throws IOException {
-        editDisplayPreferences(() -> preferences.setCategoryHidden(categoryId, hidden));
-    }
-
     public static void setModHidden(String modId, boolean hidden) throws IOException {
         editDisplayPreferences(() -> preferences.setModHidden(modId, hidden));
-    }
-
-    public static void showAllSections() throws IOException {
-        editDisplayPreferences(() -> preferences.clearHiddenSections());
     }
 
     /** Display preferences never apply a profile or mutate live hotkeys. */
@@ -449,8 +435,7 @@ public final class KeysetClient {
             }
             if (profilesChanged || preferencesChanged) {
                 liveBaseline = snapshot();
-                undoState = null;
-                lastAssignment = null;
+                invalidateUndo();
                 revision++;
                 error = "";
                 if (context != null && !Objects.equals(previousRoute, preferences.profileFor(context.id(), routeScope))) lastGameContext = null;
@@ -466,6 +451,12 @@ public final class KeysetClient {
         }
     }
     public static boolean canUndo() { return undoState != null; }
+    public static boolean canRedo() { return redoState != null; }
+
+    private static void invalidateUndo() {
+        undoState = null;
+        redoState = null;
+    }
     public static CurrentContext currentContext() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return null;
@@ -548,40 +539,6 @@ public final class KeysetClient {
                 && BindingIndex.sameInputs(value, binding(other))).toList();
     }
 
-    public static Binding previousBindingForSwap(String actionId) {
-        if (lastAssignment == null || !lastAssignment.profileId().equals(store.active().id())
-                || !lastAssignment.actionId().equals(actionId) || lastAssignment.previous().keys().isEmpty()) return null;
-        KeyMapping mapping = mappings().stream().filter(value -> value.getName().equals(actionId)).findFirst().orElse(null);
-        return mapping != null && binding(mapping).equals(lastAssignment.assigned())
-                && !BindingIndex.sameInputs(lastAssignment.previous(), lastAssignment.assigned())
-                ? lastAssignment.previous() : null;
-    }
-
-    public static void resolveBindingConflict(String actionId, ConflictResolution resolution, String counterpartId) throws IOException {
-        resolveBindingConflict(actionId, resolution, counterpartId, revision);
-    }
-
-    public static void resolveBindingConflict(String actionId, ConflictResolution resolution, String counterpartId,
-                                              long expectedRevision) throws IOException {
-        transaction(tx -> {
-            if (revision != expectedRevision) throw new SharedSettingsConflictException("Bindings changed while reviewing this conflict");
-            KeyMapping mapping = mappings().stream().filter(value -> value.getName().equals(actionId)).findFirst()
-                    .orElseThrow(() -> new IOException("Action is no longer available"));
-            List<KeyMapping> peers = conflictsFor(mapping, binding(mapping));
-            if (peers.isEmpty()) throw new IOException("The conflict has already changed");
-            Binding previous = previousBindingForSwap(actionId);
-            if (resolution == ConflictResolution.SWAP && (previous == null || peers.size() != 1
-                    || !peers.getFirst().getName().equals(counterpartId))) throw new IOException("This binding can no longer be swapped");
-            tx.commit(() -> {
-                for (KeyMapping peer : peers) assign(peer, resolution == ConflictResolution.SWAP ? previous
-                        : new Binding(InputConstants.UNKNOWN.getName(), false, false, false));
-                KeyMapping.resetMapping();
-                save();
-                lastAssignment = null;
-            });
-        });
-    }
-
     public static void copyProfileBindings(String sourceProfileId, Set<String> actionIds) throws IOException {
         copyProfileBindings(sourceProfileId, actionIds, revision);
     }
@@ -603,7 +560,6 @@ public final class KeysetClient {
                 store.updateActive(selected);
                 apply(store.active());
                 save();
-                lastAssignment = null;
             });
         });
     }
@@ -680,7 +636,7 @@ public final class KeysetClient {
                 if (!store.active().bindings().containsKey(id)) changes.put(id, value);
             });
             store.updateActive(changes);
-            if (ownOperation && !changes.isEmpty()) { undoState = null; lastAssignment = null; }
+            if (ownOperation && !changes.isEmpty()) { invalidateUndo(); }
             ExternalHotkeys.saveDirty();
             persistProfiles();
             if (!before.equals(store.checkpoint())) revision++;
@@ -696,7 +652,7 @@ public final class KeysetClient {
     private static void persistProfiles() throws IOException {
         ProfileStore.State attempted = store.checkpoint();
         store.save();
-        if (!attempted.equals(store.checkpoint())) { undoState = null; lastAssignment = null; }
+        if (!attempted.equals(store.checkpoint())) { invalidateUndo(); }
         if (pendingUndo != null) {
             try {
                 ProfileStore.State rebased = store.rebaseCheckpoint(pendingUndo.profiles(), attempted);
@@ -729,7 +685,7 @@ public final class KeysetClient {
         String routeScope = profileRouteScope();
         String previousRoute = context == null ? null : preferences.profileFor(context.id(), routeScope);
         preferences.save();
-        if (!attempted.equals(preferences.checkpoint())) { undoState = null; lastAssignment = null; }
+        if (!attempted.equals(preferences.checkpoint())) { invalidateUndo(); }
         if (context != null && !Objects.equals(previousRoute, preferences.profileFor(context.id(), routeScope))) lastGameContext = null;
         if (pendingUndo != null) {
             try {
@@ -745,6 +701,7 @@ public final class KeysetClient {
 
     private static void rememberUndo(UndoState fallback) {
         undoState = pendingUndoInvalidated ? null : pendingUndo == null ? fallback : pendingUndo;
+        redoState = null;
         pendingUndo = null;
         pendingUndoInvalidated = false;
     }
@@ -758,7 +715,7 @@ public final class KeysetClient {
         UndoState rollback = pendingUndoInvalidated ? null : pendingUndo == null ? fallback : pendingUndo;
         pendingUndo = null;
         pendingUndoInvalidated = false;
-        undoState = null;
+        invalidateUndo();
         if (rollback != null) {
             store.restore(rollback.profiles());
             preferences.restore(rollback.preferences());
@@ -814,12 +771,32 @@ public final class KeysetClient {
     }
 
     /** Saves one portable JSON file containing the active profile and its native settings. */
-    public static void exportActiveProfile() throws IOException {
+    public static Path exportActiveProfile() throws IOException {
+        ensureLoaded();
+        return exportProfile(store.active().id());
+    }
+
+    /** Saves one portable JSON file for the profile with the given id and returns where it was written. */
+    public static Path exportProfile(String id) throws IOException {
         ensureLoaded();
         save();
-        Profile active = store.active();
-        Path destination = transferDirectory().resolve(ProfileTransfer.fileName(active));
-        store.exportProfile(active.id(), destination);
+        Profile profile = store.profiles().stream().filter(candidate -> candidate.id().equals(id)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown profile"));
+        Path destination = transferDirectory().resolve(ProfileTransfer.fileName(profile));
+        store.exportProfile(profile.id(), destination);
+        return destination;
+    }
+
+    /** Exports every profile to its own portable file and returns how many were written. */
+    public static int exportAllProfiles() throws IOException {
+        ensureLoaded();
+        save();
+        int count = 0;
+        for (Profile profile : List.copyOf(store.profiles())) {
+            store.exportProfile(profile.id(), transferDirectory().resolve(ProfileTransfer.fileName(profile)));
+            count++;
+        }
+        return count;
     }
 
     /** Merges portable profiles into this installation while leaving its active profile selected. */
@@ -842,12 +819,10 @@ public final class KeysetClient {
     public static void bind(KeyMapping mapping, Binding value) throws IOException {
         ensureLoaded();
         transaction(tx -> {
-            Binding previous = binding(mapping);
             tx.commit(() -> {
                 assign(mapping, value);
                 KeyMapping.resetMapping();
                 save();
-                lastAssignment = new LastAssignment(store.active().id(), mapping.getName(), previous, binding(mapping));
             });
         });
     }
@@ -894,7 +869,6 @@ public final class KeysetClient {
                 for (KeyMapping mapping : targets) assign(mapping, new Binding(InputConstants.UNKNOWN.getName(), false, false, false));
                 KeyMapping.resetMapping();
                 save();
-                lastAssignment = null;
             });
         });
     }
@@ -913,7 +887,6 @@ public final class KeysetClient {
             store.create(name, store.active().bindings());
             persistProfiles();
             revision++;
-            lastAssignment = null;
         }));
     }
 
@@ -934,7 +907,6 @@ public final class KeysetClient {
             persistProfiles();
             Minecraft.getInstance().options.save();
             liveBaseline = snapshot();
-            lastAssignment = null;
             revision++;
         } catch (IOException ex) {
             throw ex;
@@ -965,7 +937,6 @@ public final class KeysetClient {
                     persistProfiles();
                     Minecraft.getInstance().options.save();
                     liveBaseline = snapshot();
-                    lastAssignment = null;
                     revision++;
                 } catch (RuntimeException failure) {
                     throw new IOException("Cannot delete profile", failure);
@@ -974,13 +945,18 @@ public final class KeysetClient {
         });
     }
 
-    public static void undo() throws IOException {
+    public static void undo() throws IOException { travel(false); }
+
+    public static void redo() throws IOException { travel(true); }
+
+    /** Restores the undo target, or the redo target when {@code forward}; the state left behind becomes the other one. */
+    private static void travel(boolean forward) throws IOException {
         try {
             ensureLoaded();
             refreshFromSharedSettings();
-            if (undoState == null) return;
-            UndoState target = undoState;
-            createBackup("undo");
+            UndoState target = forward ? redoState : undoState;
+            if (target == null) return;
+            createBackup(forward ? "redo" : "undo");
             ProfileStore.State priorStore = store.checkpoint();
             ClientPreferences.State priorPreferences = preferences.checkpoint();
             Map<String, Binding> priorBindings = snapshot();
@@ -995,14 +971,16 @@ public final class KeysetClient {
                 persistPreferences();
                 persistProfiles();
                 Minecraft.getInstance().options.save();
-                undoState = null;
+                UndoState left = pendingUndoInvalidated ? null : pendingUndo == null ? before : pendingUndo;
+                invalidateUndo();
+                if (forward) undoState = left;
+                else redoState = left;
                 pendingUndo = null;
                 pendingUndoInvalidated = false;
                 liveBaseline = snapshot();
-                lastAssignment = null;
                 revision++;
             } catch (IOException | RuntimeException failure) {
-                IOException exception = failure instanceof IOException io ? io : new IOException("Cannot undo change", failure);
+                IOException exception = failure instanceof IOException io ? io : new IOException("Cannot " + (forward ? "redo" : "undo") + " change", failure);
                 rollbackOperation(before, exception);
                 if (failure instanceof RuntimeException runtime) throw runtime;
                 throw exception;
@@ -1071,6 +1049,7 @@ public final class KeysetClient {
     public static void tick() {
         ensureLoaded();
         if (!loaded) return;
+        dev.keyset.client.KeysetSelfTest.tick();
         long now = System.nanoTime();
         if (watcher.due(now) && !(Minecraft.getInstance().gui.screen() instanceof KeysetScreen screen && screen.isCapturingBindings())) {
             watcher.acknowledge(now);
@@ -1217,8 +1196,6 @@ public final class KeysetClient {
     }
 
     public record CurrentContext(String id, String label) {}
-    public enum ConflictResolution { REPLACE, SWAP }
-    private record LastAssignment(String profileId, String actionId, Binding previous, Binding assigned) {}
     public record RouteResult(boolean enabled, boolean switched, String profileName, String contextLabel) {}
     private record UndoState(ProfileStore.State profiles, Map<String, Binding> liveBindings,
                              ClientPreferences.State preferences) {}

@@ -1,6 +1,6 @@
 --- a/dev/keyset/client/KeysetScreen.java
 +++ b/dev/keyset/client/KeysetScreen.java
-@@ -33,17 +33,15 @@
+@@ -34,17 +34,15 @@
  import java.util.Set;
  import net.minecraft.client.KeyMapping;
  import net.minecraft.client.Minecraft;
@@ -19,8 +19,8 @@
 +import org.lwjgl.glfw.GLFW;
  
  /** Profile-aware key binding editor. */
- public final class KeysetScreen extends Screen {
-@@ -90,19 +88,19 @@
+ public final class KeysetScreen extends ScaledScreen {
+@@ -94,19 +92,19 @@
      private final Map<Button, VirtualKey> keyboardButtonKeys = new IdentityHashMap<>();
      private List<KeyMapping> filteredMappings = List.of();
      private List<KeyMapping> allMappings = List.of();
@@ -44,8 +44,26 @@
 +    private String category;
      private String modFilter;
      private KeyMapping selectedMapping;
-     private int bindingScroll, categoryScroll, modScroll;
-@@ -327,12 +325,12 @@
+     /** The action highlighted with the arrow keys; Enter starts changing it. */
+@@ -297,7 +295,7 @@
+     }
+ 
+     /** Scrollbar of the action list and the input column: a dark path with a flat thumb that lights up on hover. */
+-    private static void drawScrollbar(GuiGraphicsExtractor graphics, int x, int top, int track,
++    private static void drawScrollbar(GuiGraphics graphics, int x, int top, int track,
+                                       int thumbTop, int thumbHeight, boolean hot) {
+         if (track <= 0) return;
+         graphics.fill(x, top, x + 3, top + track, 0x90000000);
+@@ -309,7 +307,7 @@
+             return SidebarSearch.filter(mods, sidebarSearchQuery, value -> value.name() + " " + value.id()).size();
+         }
+         return SidebarSearch.filter(categories, sidebarSearchQuery,
+-            value -> KeysetClient.categoryLabel(value).getString() + " " + value.id()).size();
++            value -> KeysetClient.categoryLabel(value).getString() + " " + value).size();
+     }
+ 
+     /** Unscrolled top of the category rows: card gap, filter tabs, search and the hide/show row. */
+@@ -479,7 +477,7 @@
  
      private void openPersonalization() {
          clearSelection();
@@ -53,14 +71,8 @@
 +        minecraft.setScreen(new PersonalizationScreen(this));
      }
  
-     private void openSectionVisibility() {
-         clearSelection();
--        minecraft.setScreenAndShow(new HiddenSectionsScreen(this));
-+        minecraft.setScreen(new HiddenSectionsScreen(this));
-     }
- 
      private void updateCompactStatus() {
-@@ -455,7 +453,7 @@
+@@ -596,7 +594,7 @@
                  Component.translatable("keyset.filter_clear_category", label)));
          }
          if (modFilter != null) {
@@ -69,7 +81,7 @@
              String modName = selectedMod == null ? modFilter : selectedMod.name();
              active.add(new FilterChip(2, Component.translatable("keyset.filter_chip_mod", modName),
                  Component.translatable("keyset.filter_clear_mod", modName)));
-@@ -749,11 +747,11 @@
+@@ -908,11 +906,11 @@
                  case LEFT -> InputConstants.MOUSE_BUTTON_LEFT;
                  case RIGHT -> InputConstants.MOUSE_BUTTON_RIGHT;
                  case MIDDLE -> InputConstants.MOUSE_BUTTON_MIDDLE;
@@ -86,7 +98,7 @@
              };
              String label = switch (part.control()) {
                  case LEFT -> "keyset.mouse_left";
-@@ -846,7 +844,7 @@
+@@ -1005,7 +1003,7 @@
              String modifiers = (value.ctrl() ? "ctrl control " : "") + (value.shift() ? "shift " : "")
                  + (value.alt() ? "alt " : "") + (value.command() ? "cmd command " : "");
              var search = new ActionSearch.Document(name.getString(), mapping.getName(),
@@ -95,7 +107,7 @@
                  modName.getString(), owner.id(), bindingLabel.getString(), String.join(" ", value.keys()), modifiers);
              mappingViews.put(mapping, new MappingView(name, bindingLabel, owner.id(), search, tooltip));
              categoryCounts.merge(mapping.getCategory(), 1, Integer::sum);
-@@ -855,7 +853,7 @@
+@@ -1014,7 +1012,7 @@
          }
          allMappings = mappings.stream().sorted(Comparator
              .comparing((KeyMapping mapping) -> KeysetClient.categoryLabel(mapping.getCategory()).getString(), String.CASE_INSENSITIVE_ORDER)
@@ -104,7 +116,7 @@
              .thenComparing(mapping -> mappingViews.get(mapping).search().name(), String.CASE_INSENSITIVE_ORDER)).toList();
          diagramIndex = new BindingIndex<>(allMappings.stream().filter(this::isMappingVisible).toList(),
              bindingIndex::binding, KeysetClient::bindingContextsConflict);
-@@ -872,7 +870,7 @@
+@@ -1031,7 +1029,7 @@
      }
  
      private boolean isMappingVisible(KeyMapping mapping) {
@@ -113,7 +125,7 @@
              && !KeysetClient.isModHidden(mappingViews.get(mapping).modId());
      }
  
-@@ -986,7 +984,7 @@
+@@ -1144,7 +1142,7 @@
          if (virtualKeyFilter != null) {
              return mappings.stream().map(mapping -> new ActionListEntry(mapping, mapping.getCategory(), 0)).toList();
          }
@@ -122,7 +134,7 @@
          for (KeyMapping mapping : mappings) groups.computeIfAbsent(mapping.getCategory(), ignored -> new ArrayList<>()).add(mapping);
          List<ActionListEntry> entries = new ArrayList<>(mappings.size() + groups.size());
          groups.forEach((section, sectionMappings) -> {
-@@ -998,11 +996,11 @@
+@@ -1156,11 +1154,11 @@
          return List.copyOf(entries);
      }
  
@@ -139,7 +151,7 @@
          return hiddenSections.contains(section);
      }
  
-@@ -1016,7 +1014,7 @@
+@@ -1174,7 +1172,7 @@
  
      private void refreshCategoryButtons() {
          searchedCategories = SidebarSearch.filter(categories, sidebarSearchQuery,
@@ -148,15 +160,7 @@
          searchedMods = SidebarSearch.filter(mods, sidebarSearchQuery,
              value -> value.name() + " " + value.id());
          int visibleCount = Math.max(1, categoryButtons.size());
-@@ -1040,13 +1038,13 @@
-                 if (!button.visible) continue;
-                 ModFilter value = searchedMods.get(index);
-                 count = value.count();
--                selected = value.id().equals(modFilter);
--                tooltip = value.name() + " · " + value.id();
-+                selected = value.equals(modFilter);
-+                tooltip = value.name() + " · " + value;
-                 button.setMessage(Component.literal(fitSidebarName(value.name(), count, button.getWidth())));
+@@ -1210,12 +1208,12 @@
              } else {
                  button.visible = index < searchedCategories.size();
                  if (!button.visible) continue;
@@ -165,7 +169,13 @@
                  String name = KeysetClient.categoryLabel(value).getString();
                  count = categoryCounts.getOrDefault(value, 0);
                  selected = value.equals(category);
-@@ -1128,7 +1126,7 @@
+                 tooltip = name;
+-                itemHidden = KeysetClient.isCategoryHidden(value.id().toString());
++                itemHidden = KeysetClient.isCategoryHidden(value);
+                 button.setMessage(Component.literal(fitSidebarName(name, count, button.getWidth())));
+             }
+             button.setTooltip(Tooltip.create(Component.literal(tooltip)));
+@@ -1298,7 +1296,7 @@
      }
  
      private void openProfilePicker() {
@@ -173,17 +183,52 @@
 +        minecraft.setScreen(new ProfilePicker());
      }
  
-     private final class ProfilePicker extends Screen {
-@@ -1251,7 +1249,7 @@
-             Profile source = profiles.get(index);
+     private final class ProfilePicker extends ScaledScreen {
+@@ -1373,7 +1371,7 @@
+             addRenderableWidget(styled(new FlatButton(left, buttonY, buttonWidth, 20,
+                 Component.translatable("keyset.profile_new_short"), ignored -> createNew()), ButtonStyle.PRIMARY, true));
+             addRenderableWidget(new FlatButton(left + buttonWidth + buttonGap, buttonY, buttonWidth, 20,
+-                Component.translatable("keyset.transfer_button"), ignored -> minecraft.setScreenAndShow(new TransferScreen())));
++                Component.translatable("keyset.transfer_button"), ignored -> minecraft.setScreen(new TransferScreen())));
+             addRenderableWidget(new FlatButton(left + 2 * (buttonWidth + buttonGap), buttonY,
+                 inner - 2 * (buttonWidth + buttonGap), 20, Component.translatable("keyset.done"), ignored -> close()));
+             refresh();
+@@ -1455,19 +1453,19 @@
+             Profile source = profileAt(slot);
              Profile active = KeysetClient.profiles().active();
-             if (active == null || active.id().equals(source.id())) return;
+             if (source == null || active == null || active.id().equals(source.id())) return;
 -            minecraft.setScreenAndShow(new ProfileComparisonScreen(KeysetScreen.this, source.id()));
 +            minecraft.setScreen(new ProfileComparisonScreen(KeysetScreen.this, source.id()));
          }
  
-         private void select(int slot) {
-@@ -1279,7 +1277,7 @@
+         private void rename(int slot) {
+             Profile profile = profileAt(slot);
+             if (profile == null) return;
+             String id = profile.id();
+-            minecraft.setScreenAndShow(new NameDialog(Component.translatable("keyset.profile_rename_title"),
++            minecraft.setScreen(new NameDialog(Component.translatable("keyset.profile_rename_title"),
+                 profile.name(), name -> KeysetClient.renameProfile(id, name), ProfilePicker::new));
+         }
+ 
+         private void createNew() {
+-            minecraft.setScreenAndShow(new NameDialog(Component.translatable("keyset.profile_new_title"), "",
++            minecraft.setScreen(new NameDialog(Component.translatable("keyset.profile_new_title"), "",
+                 KeysetClient::createProfile, ProfilePicker::new));
+         }
+ 
+@@ -1475,9 +1473,9 @@
+             Profile profile = profileAt(slot);
+             if (profile == null || currentProfiles().size() <= 1) return;
+             String id = profile.id();
+-            minecraft.setScreenAndShow(new ConfirmScreen(confirmed -> {
++            minecraft.setScreen(new ConfirmScreen(confirmed -> {
+                 if (confirmed) runAction(() -> KeysetClient.deleteProfile(id));
+-                minecraft.setScreenAndShow(new ProfilePicker());
++                minecraft.setScreen(new ProfilePicker());
+             }, Component.translatable("keyset.profile_delete_title"),
+                 Component.translatable("keyset.profile_delete_prompt", profile.name()),
+                 Component.translatable("keyset.confirm"), Component.translatable("keyset.cancel")));
+@@ -1514,7 +1512,7 @@
          }
  
          private void close() {
@@ -191,19 +236,8 @@
 +            minecraft.setScreen(KeysetScreen.this);
          }
  
-         private void toggleScope() {
-@@ -1314,8 +1312,8 @@
-                     statusIsError = false;
-                     return;
-                 }
--                minecraft.setScreenAndShow(new ConfirmScreen(confirmed -> {
--                    minecraft.setScreenAndShow(KeysetScreen.this);
-+                minecraft.setScreen(new ConfirmScreen(confirmed -> {
-+                    minecraft.setScreen(KeysetScreen.this);
-                     if (confirmed) importTransferred();
-                 }, Component.translatable("keyset.transfer_import_title"),
-                     Component.translatable("keyset.transfer_import_prompt", count),
-@@ -1353,21 +1351,23 @@
+         @Override
+@@ -1525,24 +1523,24 @@
          }
  
          @Override
@@ -222,42 +256,112 @@
 -        public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 -            super.extractBackground(graphics, mouseX, mouseY, partialTick);
 +        public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
++            super.renderBackground(graphics, mouseX, mouseY, partialTick);
+         }
+ 
+         @Override
+-        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
++        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+             drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+             graphics.fill(panelX + 12, panelY + 29, panelX + panelWidth - 12, panelY + 30, UiTheme.border());
+-            graphics.text(font, Component.translatable("keyset.profile_picker_title"), panelX + 14, panelY + 13, UiTheme.text());
++            graphics.drawString(font, Component.translatable("keyset.profile_picker_title"), panelX + 14, panelY + 13, UiTheme.text());
+             Component status = pickerStatus;
+             if (status == null && KeysetClient.currentContext() == null) {
+                 status = Component.translatable("keyset.auto_profile_requires_world");
+@@ -1551,7 +1549,7 @@
+                 drawText(graphics, status, panelX + 14, panelY + panelHeight - 45, panelWidth - 28,
+                     pickerStatus == null ? UiTheme.muted() : pickerStatusError ? UiTheme.red() : UiTheme.accentText());
+             }
+-            super.extractRenderState(graphics, mouseX, mouseY, partialTick);
++            super.render(graphics, mouseX, mouseY, partialTick);
+             String activeId = activeId();
+             for (int i = 0; i < rows.size(); i++) {
+                 Profile profile = profileAt(i);
+@@ -1562,8 +1560,8 @@
+                 int badgeX = row.getX() + row.getWidth() - badgeWidth - 4;
+                 int badgeY = row.getY() + 4;
+                 graphics.fill(badgeX, badgeY, badgeX + badgeWidth, badgeY + 14, 0xA0152622);
+-                graphics.outline(badgeX, badgeY, badgeWidth, 14, UiTheme.accent());
+-                graphics.text(font, badge, badgeX + 5, badgeY + 3, UiTheme.accentText(), false);
++                graphics.renderOutline(badgeX, badgeY, badgeWidth, 14, UiTheme.accent());
++                graphics.drawString(font, badge, badgeX + 5, badgeY + 3, UiTheme.accentText(), false);
+             }
+         }
+     }
+@@ -1656,9 +1654,9 @@
+                 report(Component.translatable("keyset.transfer_empty"), true);
+                 return;
+             }
+-            minecraft.setScreenAndShow(new ConfirmScreen(confirmed -> {
++            minecraft.setScreen(new ConfirmScreen(confirmed -> {
+                 if (confirmed) importNow();
+-                minecraft.setScreenAndShow(new TransferScreen());
++                minecraft.setScreen(new TransferScreen());
+             }, Component.translatable("keyset.transfer_import_title"),
+                 Component.translatable("keyset.transfer_import_prompt", pendingFiles),
+                 Component.translatable("keyset.confirm"), Component.translatable("keyset.cancel")));
+@@ -1681,16 +1679,16 @@
+         }
+ 
+         private void back() {
+-            minecraft.setScreenAndShow(new ProfilePicker());
++            minecraft.setScreen(new ProfilePicker());
+         }
+ 
+         @Override
+-        public boolean keyPressed(KeyEvent event) {
+-            if (event.key() == InputConstants.KEY_ESCAPE) {
++        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
++            if (keyCode == InputConstants.KEY_ESCAPE) {
+                 back();
+                 return true;
+             }
+-            return super.keyPressed(event);
++            return super.keyPressed(keyCode, scanCode, modifiers);
+         }
+ 
+         private List<String> wrap(String text, int maxWidth) {
+@@ -1710,19 +1708,19 @@
+         }
+ 
+         @Override
+-        public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+-            super.extractBackground(graphics, mouseX, mouseY, partialTick);
++        public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
 +            // Vanilla 1.21 draws a blurred world here; the screen paints its own backdrop in render().
          }
  
          @Override
 -        public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 +        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-+            if (minecraft.level == null) { renderPanorama(graphics, partialTick); renderMenuBackground(graphics); }
-+        else renderTransparentBackground(graphics); // vanilla dim over the world
-             int panelWidth = Math.max(1, Math.min(480, width - 24));
-             boolean hasContext = KeysetClient.currentContext() != null;
-             int panelHeight = Math.min(height - 32,
-@@ -1376,12 +1376,12 @@
-             int y = (height - panelHeight) / 2;
-             drawCard(graphics, x, y, panelWidth, panelHeight);
-             graphics.fill(x + 12, y + 29, x + panelWidth - 12, y + 30, UiTheme.border());
--            graphics.text(font, Component.translatable("keyset.profile_picker_title"), x + 14, y + 13, UiTheme.text());
-+            graphics.drawString(font, Component.translatable("keyset.profile_picker_title"), x + 14, y + 13, UiTheme.text());
-             if (!hasContext) {
-                 Component hint = Component.translatable("keyset.auto_profile_requires_world");
-                 drawText(graphics, hint, x + 14, y + panelHeight - 47, panelWidth - 28, UiTheme.muted());
+             drawCard(graphics, panelX, panelY, panelWidth, panelHeight);
+             graphics.fill(panelX + 12, panelY + 29, panelX + panelWidth - 12, panelY + 30, UiTheme.border());
+-            graphics.text(font, title, panelX + 14, panelY + 13, UiTheme.text());
++            graphics.drawString(font, title, panelX + 14, panelY + 13, UiTheme.text());
+             int textWidth = panelWidth - 28;
+             int y = textTop;
+             for (String line : wrap(Component.translatable("keyset.transfer_how").getString(), textWidth)) {
+-                graphics.text(font, line, panelX + 14, y, UiTheme.muted(), false);
++                graphics.drawString(font, line, panelX + 14, y, UiTheme.muted(), false);
+                 y += 11;
+             }
+             y += 4;
+@@ -1732,11 +1730,11 @@
+                 List<String> lines = wrap(transferStatus.getString(), textWidth);
+                 int statusY = panelY + panelHeight - 29 - 4 * 24 - 8 - 4 - Math.min(2, lines.size()) * 11;
+                 for (int i = 0; i < Math.min(2, lines.size()); i++) {
+-                    graphics.text(font, lines.get(i), panelX + 14, statusY + i * 11,
++                    graphics.drawString(font, lines.get(i), panelX + 14, statusY + i * 11,
+                         transferStatusError ? UiTheme.red() : UiTheme.accentText(), false);
+                 }
              }
 -            super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 +            super.render(graphics, mouseX, mouseY, partialTick);
-             String activeId = KeysetClient.profiles().active() == null ? null : KeysetClient.profiles().active().id();
-             for (int i = 0; i < rows.size(); i++) {
-                 int index = scroll + i;
-@@ -1399,7 +1399,7 @@
-                 int badgeX = row.getX() + 8 + font.width(displayName) + 5;
-                 int badgeY = row.getY() + 3;
-                 rounded(graphics, badgeX, badgeY, badgeWidth, 14, 0x804A9C8C);
--                graphics.text(font, "✓ " + badge, badgeX + 5, badgeY + 3, UiTheme.accentText(), false);
-+                graphics.drawString(font, "✓ " + badge, badgeX + 5, badgeY + 3, UiTheme.accentText(), false);
-             }
          }
      }
-@@ -1464,7 +1464,7 @@
+ 
+@@ -1793,7 +1791,7 @@
      }
  
      private String keyName(VirtualKey key) {
@@ -266,16 +370,7 @@
      }
  
      private void captureMappingAt(int slot) {
-@@ -1498,7 +1498,7 @@
-     private void inspectConflictAt(int slot) {
-         KeyMapping mapping = mappingAt(slot);
-         if (mapping != null && bindingIndex.conflicts(mapping)) {
--            minecraft.setScreenAndShow(new BindingConflictScreen(this, mapping));
-+            minecraft.setScreen(new BindingConflictScreen(this, mapping));
-         }
-     }
- 
-@@ -1517,8 +1517,8 @@
+@@ -1868,8 +1866,8 @@
          ActionListEntry entry = entryAt(slot);
          if (entry == null || !entry.isSection()) return;
          if (isSectionHidden(entry.category())) return;
@@ -286,16 +381,40 @@
          collapseRevision++;
          if (collapsed && selectedMapping != null && selectedMapping.getCategory().equals(entry.category())) {
              clearSelection();
-@@ -1532,7 +1532,7 @@
-         if (entry == null || !entry.isSection()) return;
+@@ -1881,10 +1879,10 @@
+     private void setAllHidden(boolean hide) {
+         boolean modsMode = modFilterMode;
+         List<ModFilter> listedMods = List.copyOf(searchedMods);
+-        List<KeyMapping.Category> listedCategories = List.copyOf(searchedCategories);
++        List<String> listedCategories = List.copyOf(searchedCategories);
+         if (runAction(() -> {
+             if (modsMode) for (ModFilter value : listedMods) KeysetClient.setModHidden(value.id(), hide);
+-            else for (KeyMapping.Category value : listedCategories) KeysetClient.setSectionHidden(value, hide);
++            else for (String value : listedCategories) KeysetClient.setSectionHidden(value, hide);
+         }) && hide) {
+             if (modsMode && listedMods.stream().anyMatch(value -> value.id().equals(modFilter))) modFilter = null;
+             if (!modsMode && listedCategories.contains(category)) category = null;
+@@ -1906,8 +1904,8 @@
+             }
+         } else {
+             if (index < 0 || index >= searchedCategories.size()) return;
+-            KeyMapping.Category value = searchedCategories.get(index);
+-            boolean hidden = KeysetClient.isCategoryHidden(value.id().toString());
++            String value = searchedCategories.get(index);
++            boolean hidden = KeysetClient.isCategoryHidden(value);
+             if (runAction(() -> KeysetClient.setSectionHidden(value, !hidden))) {
+                 if (!hidden && value.equals(category)) category = null;
+                 statusMessage = Component.translatable(hidden ? "keyset.section_restored_notice"
+@@ -1924,7 +1922,7 @@
          int anchor = bindingScroll;
          boolean hidden = isSectionHidden(entry.category());
--        if (hidden) COLLAPSED_SECTIONS.remove(entry.category().id().toString());
-+        if (hidden) COLLAPSED_SECTIONS.remove(entry.category());
          if (runAction(() -> KeysetClient.setSectionHidden(entry.category(), !hidden))) {
+-            if (hidden) COLLAPSED_SECTIONS.remove(entry.category().id().toString());
++            if (hidden) COLLAPSED_SECTIONS.remove(entry.category());
+             else if (entry.category().equals(category)) category = null;
              bindingScroll = clampScroll(anchor, displayEntries.size(), visibleRowCapacity());
              statusMessage = Component.translatable(hidden ? "keyset.section_restored_notice" : "keyset.visibility_hidden_notice", KeysetClient.categoryLabel(entry.category()));
-@@ -1546,9 +1546,9 @@
+@@ -1938,9 +1936,9 @@
          if (entry == null || !entry.isSection()) return;
          long revision = KeysetClient.revision();
          int count = (int) allMappings.stream().filter(mapping -> mapping.getCategory().equals(entry.category())).count();
@@ -308,7 +427,7 @@
          }, Component.translatable("keyset.section_unbind_title"), Component.translatable("keyset.section_unbind_prompt",
              KeysetClient.categoryLabel(entry.category()), count), Component.translatable("keyset.confirm"), Component.translatable("keyset.cancel")));
      }
-@@ -1601,9 +1601,9 @@
+@@ -1993,9 +1991,9 @@
      }
  
      private void confirmResetAll() {
@@ -320,7 +439,7 @@
          }, Component.translatable("keyset.reset_all_title"), Component.translatable("keyset.reset_all_prompt"),
              Component.translatable("keyset.confirm"), Component.translatable("keyset.cancel")));
      }
-@@ -1611,9 +1611,9 @@
+@@ -2003,9 +2001,9 @@
      private void confirmDeleteProfile() {
          Profile active = KeysetClient.profiles().active();
          if (active == null || currentProfiles().size() <= 1) return;
@@ -332,7 +451,7 @@
          }, Component.translatable("keyset.profile_delete_title"),
              Component.translatable("keyset.profile_delete_prompt", active.name()),
              Component.translatable("keyset.confirm"), Component.translatable("keyset.cancel")));
-@@ -1631,7 +1631,7 @@
+@@ -2023,7 +2021,7 @@
      }
  
      private void openNameDialog(Component title, String initial, NameAction action) {
@@ -341,7 +460,7 @@
      }
  
      private boolean runAction(IoAction action) {
-@@ -1687,23 +1687,23 @@
+@@ -2079,35 +2077,37 @@
      }
  
      @Override
@@ -370,14 +489,6 @@
          graphics.fill(x, y, x + w, y + 1, UiTheme.border());
      }
  
--    private static void rounded(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int color) {
-+    private static void rounded(GuiGraphics graphics, int x, int y, int w, int h, int color) {
-         if (w <= 0 || h <= 0) return;
-         if (w < 4 || h < 4) { graphics.fill(x, y, x + w, y + h, color); return; }
-         graphics.fill(x + 2, y, x + w - 2, y + h, color);
-@@ -1712,18 +1712,20 @@
-     }
- 
      @Override
 -    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 +    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
@@ -402,7 +513,7 @@
              graphics.fill(16, 57, width - 16, 58, UiTheme.border());
              graphics.fill(16, height - 48, width - 16, height - 47, UiTheme.border());
          }
-@@ -1760,7 +1762,7 @@
+@@ -2154,7 +2154,7 @@
              : Component.translatable("keyset.bindings_for_key", inputLabel(virtualKeyFilter));
          drawText(graphics, listTitle, mainX + 12, listTitleY, mainWidth - 110, UiTheme.text());
          Component count = Component.translatable("keyset.binding_count", filteredMappings.size());
@@ -411,7 +522,7 @@
          }
          int searchLeft = mainX + (singlePane ? 4 : 8);
          int searchRight = Math.min(mainX + mainWidth - 8, searchLeft + searchBox.getWidth() + 30);
-@@ -1769,8 +1771,8 @@
+@@ -2163,8 +2163,8 @@
          graphics.fill(searchLeft, searchY + viewport.searchHeight() - 1, searchRight,
              searchY + viewport.searchHeight(), searchBox.isFocused() ? UiTheme.accent() : UiTheme.border());
          if (!singlePane) {
@@ -422,7 +533,16 @@
                  rowBindingButtons.get(0).getX() + 5, listTop - 16, UiTheme.muted(), false);
          }
  
-@@ -1817,10 +1819,10 @@
+@@ -2189,7 +2189,7 @@
+                 : (bindingScroll + i) % 2 == 0 ? UiTheme.row() : UiTheme.rowAlternate();
+             graphics.fill(mainX + 8, y, mainX + mainWidth - 12, y + rowHeight - 2, color);
+             if (selectedMapping == mapping) graphics.fill(mainX + 8, y, mainX + 10, y + rowHeight - 2, UiTheme.accent());
+-            else if (cursor) graphics.outline(mainX + 8, y, mainX + mainWidth - 20, rowHeight - 2, UiTheme.accent());
++            else if (cursor) graphics.renderOutline(mainX + 8, y, mainX + mainWidth - 20, rowHeight - 2, UiTheme.accent());
+         }
+         if (filteredMappings.isEmpty()) {
+             Component empty = virtualKeyFilter == null ? Component.translatable("keyset.no_bindings")
+@@ -2214,10 +2214,10 @@
              int legendY = summaryY - 16;
              graphics.fill(sidebarX + 16, legendY + 2, sidebarX + 20, legendY + 6,
                  UiTheme.keyColors(true, false, false).edge());
@@ -434,8 +554,8 @@
 +            graphics.drawString(font, Component.translatable("keyset.legend_conflict"), sidebarX + 150, legendY, UiTheme.muted(), false);
          }
          if (!singlePane) {
-         graphics.fill(sidebarX + 12, summaryY - 4, sidebarX + sidebarWidth - 12, summaryY - 3, UiTheme.border());
-@@ -1828,7 +1830,7 @@
+         graphics.fill(sidebarX + 12, summaryY - 4, maxLeftScroll > 0 ? leftBarX() - 6 : sidebarX + sidebarWidth - 12,
+@@ -2226,7 +2226,7 @@
              drawText(graphics, Component.translatable("keyset.selection_empty"), sidebarX + 14, summaryY + 8, sidebarWidth - 28, UiTheme.text());
              drawText(graphics, Component.translatable("keyset.selection_hint"), sidebarX + 14, summaryY + 24, sidebarWidth - 28, UiTheme.muted());
          } else {
@@ -444,7 +564,7 @@
                  sidebarX + 14, summaryY + 6, UiTheme.text(), false);
              drawText(graphics, KeysetClient.name(selectedMapping), sidebarX + 14, summaryY + 22,
                  sidebarWidth - 212, UiTheme.text());
-@@ -1847,7 +1849,7 @@
+@@ -2255,7 +2255,7 @@
          Component footer = statusMessage != null ? statusMessage : Component.translatable("keyset.footer_hint");
          if (!singlePane) drawText(graphics, footer, sidebarX + 2, height - 31, sidebarWidth - 4,
              statusIsError ? 0xFFFF8A8A : 0xFFB2B7B5);
@@ -453,7 +573,7 @@
          if (showCategories()) {
              int visibleItems = modFilterMode ? searchedMods.size() : searchedCategories.size();
              if (visibleItems == 0) {
-@@ -1862,34 +1864,33 @@
+@@ -2270,44 +2270,43 @@
                  int countY = button.getY() + (button.getHeight() - font.lineHeight) / 2;
                  int color = button instanceof FlatButton flat && flat.visualState == VisualState.SELECTED
                      ? UiTheme.accentText() : UiTheme.muted();
@@ -465,8 +585,22 @@
  
      @Override
 -    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
--        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && isDividerAt(event.x(), event.y())) {
+-        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && actionsBarHit(event.x(), event.y())) {
 +    public boolean mouseClicked(double mouseX, double mouseY, int button) {
++        if (button == InputConstants.MOUSE_BUTTON_LEFT && actionsBarHit(mouseX, mouseY)) {
+             actionsBarDragging = true;
+-            dragActionsBarTo(event.y());
++            dragActionsBarTo(mouseY);
+             return true;
+         }
+-        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && leftBarHit(event.x(), event.y())) {
++        if (button == InputConstants.MOUSE_BUTTON_LEFT && leftBarHit(mouseX, mouseY)) {
+             leftBarDragging = true;
+-            dragLeftBarTo(event.y());
++            dragLeftBarTo(mouseY);
+             return true;
+         }
+-        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && isDividerAt(event.x(), event.y())) {
 +        if (button == InputConstants.MOUSE_BUTTON_LEFT && isDividerAt(mouseX, mouseY)) {
              dividerDragging = true;
 -            draggedDividerX = clampDividerX((int) event.x());
@@ -497,7 +631,7 @@
              return true;
          }
          return handled;
-@@ -1897,21 +1898,22 @@
+@@ -2315,21 +2314,22 @@
  
      private void collectNativeInput(String key, int modifiers) {
          // Include modifiers already held when the action was clicked; new presses retain their order.
@@ -527,18 +661,22 @@
          }
      }
  
-@@ -1920,8 +1922,8 @@
+@@ -2338,12 +2338,12 @@
      }
  
      @Override
 -    public boolean mouseReleased(MouseButtonEvent event) {
--        if (dividerDragging && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
 +    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+         if (leftBarDragging || actionsBarDragging) {
+             leftBarDragging = actionsBarDragging = false;
+             return true;
+         }
+-        if (dividerDragging && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
 +        if (dividerDragging && button == InputConstants.MOUSE_BUTTON_LEFT) {
              dividerDragging = false;
              setDragging(false);
              double ratio = panels.ratioAtDivider(draggedDividerX);
-@@ -1936,18 +1938,32 @@
+@@ -2358,26 +2358,40 @@
              return true;
          }
          if (capturing && selectedMapping != null && KeysetClient.multiKeyCapture(selectedMapping)) {
@@ -552,9 +690,19 @@
  
      @Override
 -    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
++    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+         if (actionsBarDragging) {
+-            dragActionsBarTo(event.y());
++            dragActionsBarTo(mouseY);
+             return true;
+         }
+         if (leftBarDragging) {
+-            dragLeftBarTo(event.y());
++            dragLeftBarTo(mouseY);
+             return true;
+         }
 -        if (dividerDragging && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
 -            draggedDividerX = clampDividerX((int) event.x());
-+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
 +        if (dividerDragging && button == InputConstants.MOUSE_BUTTON_LEFT) {
 +            draggedDividerX = clampDividerX((int) mouseX);
              return true;
@@ -578,7 +726,7 @@
      }
  
      private boolean isDividerAt(double x, double y) {
-@@ -2017,31 +2033,31 @@
+@@ -2454,31 +2468,31 @@
      }
  
      @Override
@@ -620,8 +768,19 @@
              if (searchBox != null) {
                  if (singlePane && compactPage != EditorViewport.Page.ACTIONS) {
                      compactPage = EditorViewport.Page.ACTIONS;
-@@ -2053,39 +2069,39 @@
+@@ -2490,19 +2504,19 @@
              }
+             return true;
+         }
+-        boolean control = (event.modifiers() & InputConstants.MOD_CONTROL) != 0;
+-        boolean shift = (event.modifiers() & InputConstants.MOD_SHIFT) != 0;
+-        if (control && event.key() == InputConstants.KEY_Z && !shift) { undoShortcut(false); return true; }
+-        if (control && (event.key() == InputConstants.KEY_Y || event.key() == InputConstants.KEY_Z && shift)) {
++        boolean control = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
++        boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
++        if (control && keyCode == InputConstants.KEY_Z && !shift) { undoShortcut(false); return true; }
++        if (control && (keyCode == InputConstants.KEY_Y || keyCode == InputConstants.KEY_Z && shift)) {
+             undoShortcut(true);
              return true;
          }
 -        if (event.key() == InputConstants.KEY_ESCAPE) {
@@ -629,8 +788,26 @@
              onClose();
              return true;
          }
+-        if (!control && showActions() && handleListKey(event)) return true;
 -        return super.keyPressed(event);
++        if (!control && showActions() && handleListKey(keyCode, scanCode, modifiers)) return true;
 +        return super.keyPressed(keyCode, scanCode, modifiers);
+     }
+ 
+     private void undoShortcut(boolean redo) {
+@@ -2514,9 +2528,9 @@
+     }
+ 
+     /** Arrow keys walk the action list, Page keys jump a screen, Enter starts changing the highlighted action. */
+-    private boolean handleListKey(KeyEvent event) {
++    private boolean handleListKey(int keyCode, int scanCode, int modifiers) {
+         boolean typing = getFocused() instanceof EditBox box && box.isFocused();
+-        int key = event.key();
++        int key = keyCode;
+         int page = Math.max(1, visibleRowCapacity() - 1);
+         int delta = switch (key) {
+             case InputConstants.KEY_DOWN -> 1;
+@@ -2574,31 +2588,31 @@
      }
  
      @Override
@@ -669,7 +846,7 @@
      }
  
      @Override
-@@ -2098,7 +2114,7 @@
+@@ -2611,7 +2625,7 @@
      public void onClose() {
          try {
              KeysetClient.save();
@@ -678,12 +855,12 @@
          } catch (IOException exception) {
              statusMessage = localizedError(exception);
              statusIsError = true;
-@@ -2166,29 +2182,31 @@
+@@ -2687,29 +2701,31 @@
          }
  
          private void returnToEditor() {
--            minecraft.setScreenAndShow(KeysetScreen.this);
-+            minecraft.setScreen(KeysetScreen.this);
+-            minecraft.setScreenAndShow(returnTo.get());
++            minecraft.setScreen(returnTo.get());
          }
  
          @Override
@@ -718,7 +895,7 @@
              int panelWidth = Math.min(310, width - 20);
              int panelHeight = 102;
              int x = (width - panelWidth) / 2;
-@@ -2196,9 +2214,9 @@
+@@ -2717,9 +2733,9 @@
              drawCard(graphics, x, y, panelWidth, panelHeight);
              graphics.fill(x + 12, y + 31, x + panelWidth - 12, y + 55, UiTheme.control());
              graphics.fill(x + 12, y + 54, x + panelWidth - 12, y + 55, nameBox.isFocused() ? UiTheme.accent() : UiTheme.border());
@@ -731,7 +908,7 @@
          }
      }
  
-@@ -2229,7 +2247,7 @@
+@@ -2750,7 +2766,7 @@
          }
  
          @Override
@@ -740,7 +917,7 @@
              boolean hover = isHoveredOrFocused() && active;
              boolean selected = visualState == VisualState.SELECTED;
              boolean conflict = visualState == VisualState.CONFLICT || inputConflict;
-@@ -2271,7 +2289,7 @@
+@@ -2793,7 +2809,7 @@
                      graphics.fill(x, y + h - 2, x + w, y + h, UiTheme.accent());
                  }
              }
@@ -749,7 +926,7 @@
              Font font = Minecraft.getInstance().font;
              String label = getMessage().getString();
              if (style == ButtonStyle.KEYCAP) {
-@@ -2287,16 +2305,16 @@
+@@ -2809,16 +2825,16 @@
              int textX = centered ? x + (w - font.width(label)) / 2
                  : x + (style == ButtonStyle.SECTION ? 10 : 6);
              int textY = y + (h - font.lineHeight) / 2;

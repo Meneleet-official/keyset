@@ -15,6 +15,7 @@ class KeyboardDiagramLayoutTest {
     @Test
     void customBottomRowsReorderInputsAndResizeSpaceWithoutOverlapsOrLosingKeys() {
         for (var form : KeyboardFormFactor.values()) for (var platform : KeyboardPlatform.values()) {
+            if (form == KeyboardFormFactor.AUTO) continue; // auto picks a different keyboard per width
             var defaults = KeyboardPresentation.defaults().withPlatform(platform);
             var original = KeyboardDiagramLayout.forArea(0, 0, 480, 240, 100, form, KeyboardLayouts.forLanguage("en_us"), defaults);
             for (int quarters : new int[] {8, 25, 32}) for (int width : new int[] {240, 960}) {

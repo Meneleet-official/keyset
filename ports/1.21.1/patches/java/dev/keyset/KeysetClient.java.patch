@@ -11,7 +11,7 @@
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
  
-@@ -57,7 +58,7 @@
+@@ -58,7 +59,7 @@
      private static String lastGameContext;
      private static KeyMapping nextProfile;
      private static KeyMapping previousProfile;
@@ -65,7 +65,7 @@
      public static boolean multiKeyCapture(KeyMapping mapping) { return ExternalHotkeys.get(mapping) != null; }
      public static ModOrigins.Owner owner(KeyMapping mapping) {
          var external = ExternalHotkeys.get(mapping);
-@@ -887,7 +890,7 @@
+@@ -862,7 +865,7 @@
          ensureLoaded();
          transaction(tx -> {
              if (revision != expectedRevision) throw new SharedSettingsConflictException("Bindings changed while confirming category removal");
@@ -74,7 +74,7 @@
              if (targets.isEmpty()) return;
              tx.commit(() -> {
                  createBackup("unbind-category");
-@@ -899,9 +902,9 @@
+@@ -873,9 +876,9 @@
          });
      }
  
@@ -86,16 +86,16 @@
              if (!hidden) for (KeyMapping mapping : mappings()) {
                  if (mapping.getCategory().equals(category)) preferences.setModHidden(owner(mapping).id(), false);
              }
-@@ -1072,7 +1075,7 @@
-         ensureLoaded();
+@@ -1051,7 +1054,7 @@
          if (!loaded) return;
+         dev.keyset.client.KeysetSelfTest.tick();
          long now = System.nanoTime();
 -        if (watcher.due(now) && !(Minecraft.getInstance().gui.screen() instanceof KeysetScreen screen && screen.isCapturingBindings())) {
 +        if (watcher.due(now) && !(Minecraft.getInstance().screen instanceof KeysetScreen screen && screen.isCapturingBindings())) {
              watcher.acknowledge(now);
              try { refreshFromSharedSettings(); }
              catch (IOException | RuntimeException failure) {
-@@ -1083,21 +1086,21 @@
+@@ -1062,21 +1065,21 @@
          // Releasing a modifier before the primary key must not leave a chord held.
          ResourcePackThemes.tick();
          for (var entry : chords.entrySet()) {
@@ -122,7 +122,7 @@
          }
          updateContextRoute();
      }
-@@ -1108,8 +1111,8 @@
+@@ -1087,8 +1090,8 @@
          try {
              switchProfile(next.id());
              if (Minecraft.getInstance().player != null) {
@@ -133,7 +133,7 @@
              }
          } catch (IOException | RuntimeException exception) {
              LOG.warn("Cannot switch to the next profile", exception);
-@@ -1129,8 +1132,8 @@
+@@ -1108,8 +1111,8 @@
          try {
              switchProfile(profileId);
              if (Minecraft.getInstance().player != null) {
@@ -144,7 +144,7 @@
              }
          } catch (IOException | RuntimeException exception) {
              LOG.warn("Cannot apply the automatic profile for {}", context.label(), exception);
-@@ -1142,19 +1145,24 @@
+@@ -1121,19 +1124,24 @@
      }
  
      private static int currentModifiers() {
@@ -179,7 +179,7 @@
      }
  
      /** Instance matching is also used by inventory, hotbar and other GUI shortcuts. */
-@@ -1164,12 +1172,20 @@
+@@ -1143,12 +1151,20 @@
          if (chord != null) return chord.key().equals(key.getName()) && modifiersMatch(chord, modifiers) && platform.active(mapping);
          if (mapping.saveString().equals(key.getName()) && chords.entrySet().stream()
                  .anyMatch(e -> e.getValue().key().equals(key.getName()) && modifiersMatch(e.getValue(), modifiers)
@@ -201,7 +201,7 @@
      }
  
      /** Return true only when an active chord consumes this primary input. */
-@@ -1185,7 +1201,7 @@
+@@ -1164,7 +1180,7 @@
          // Always allow vanilla to release a plain binding, including when the
          // modifier was pressed after its primary key was already held.
          if (!down && !click) return false;

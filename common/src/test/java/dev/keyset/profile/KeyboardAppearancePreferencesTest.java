@@ -13,11 +13,11 @@ class KeyboardAppearancePreferencesTest {
     @TempDir Path directory;
 
     @Test
-    void formatRoundTripsAndInvalidOrMissingFormatUsesFullSize() throws IOException {
+    void formatRoundTripsAndInvalidOrMissingFormatUsesAutomaticSize() throws IOException {
         Path file = directory.resolve("preferences.properties");
         ClientPreferences preferences = new ClientPreferences(file);
         preferences.load();
-        assertEquals(KeyboardFormFactor.FULL, preferences.appearance().keyboardFormFactor());
+        assertEquals(KeyboardFormFactor.AUTO, preferences.appearance().keyboardFormFactor());
         for (KeyboardFormFactor form : KeyboardFormFactor.values()) {
             preferences.setAppearance(preferences.appearance().withKeyboardFormFactor(form));
             preferences.save();
@@ -27,7 +27,7 @@ class KeyboardAppearancePreferencesTest {
         }
         Files.writeString(file, "ui.keyboardFormFactor=unknown-layout\n");
         preferences.load();
-        assertEquals(KeyboardFormFactor.FULL, preferences.appearance().keyboardFormFactor());
+        assertEquals(KeyboardFormFactor.AUTO, preferences.appearance().keyboardFormFactor());
     }
 
     @Test
